@@ -1,13 +1,15 @@
 "use client";
 
-import { use } from "react";
+import { use, useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useUser } from "@/components/user-provider";
 import { useDayData } from "@/hooks/use-day-data";
 import { useGlobalTodos } from "@/hooks/use-global-todos";
 import { useCurrentBlock } from "@/hooks/use-current-block";
 import { formatDisplayDate, addDays, isToday } from "@/lib/dates";
 import { CompactTimeline } from "@/components/compact-timeline";
+import { TemplateSelector } from "@/components/template-selector";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,17 +29,33 @@ const statusConfig: Record<TodoStatus, { icon: typeof Circle; color: string }> =
 };
 
 export default function DayPage({ params }: PageProps) {
-  const { date } = use(params);
+  const { date: initialDate } = use(params);
+  const router = useRouter();
+
+  // 使用客户端状态管理当前日期，避免路由切换导致组件重新挂载
+  const [currentDate, setCurrentDate] = useState(initialDate);
+
+  // 同步 URL 变化（浏览器前进/后退）
+  useEffect(() => {
+    setCurrentDate(initialDate);
+  }, [initialDate]);
+
   const { currentUserId, currentUser } = useUser();
-  const { schedule, isLoading: dayLoading, isValidating, updateSchedule } = useDayData(date, currentUserId);
-  const { todos, isLoading: todosLoading, cycleTodoStatus, linkTodoToBlock } = useGlobalTodos();
+  const { schedule, isLoading: dayLoading, isValidating, updateSchedule } = useDayData(currentDate, currentUserId);
+  const { todos, isLoading: todosLoading, cycleTodoStatus } = useGlobalTodos();
   const { currentBlock } = useCurrentBlock(schedule);
 
-  const prevDate = addDays(date, -1);
-  const nextDate = addDays(date, 1);
+  // 切换日期：更新状态并同步 URL（不触发页面重载）
+  const navigateDate = (newDate: string) => {
+    setCurrentDate(newDate);
+    router.replace(`/day/${newDate}`, { scroll: false });
+  };
 
-  // 只在首次加载（没有缓存数据）时显示骨架屏
-  const showSkeleton = (dayLoading && schedule.length === 0) || todosLoading;
+  const goToPrevDate = () => navigateDate(addDays(currentDate, -1));
+  const goToNextDate = () => navigateDate(addDays(currentDate, 1));
+
+  // 只在首次加载（没有任何数据）时显示骨架屏
+  const showSkeleton = dayLoading && !schedule.length && todosLoading;
 
   // 获取当前用户的待办
   const userTodos = currentUserId ? todos[currentUserId] : [];
@@ -64,38 +82,50 @@ export default function DayPage({ params }: PageProps) {
       {/* 顶部导航 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Link href={`/day/${prevDate}`}>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold">{formatDisplayDate(date)}</h1>
-            {isToday(date) && <Badge variant="default" className="text-xs">今天</Badge>}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={goToPrevDate}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex items-center gap-2 min-w-[200px]">
+            <h1 className="text-xl font-bold">{formatDisplayDate(currentDate)}</h1>
+            {isToday(currentDate) && <Badge variant="default" className="text-xs">今天</Badge>}
             {isValidating && (
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             )}
           </div>
-          <Link href={`/day/${nextDate}`}>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={goToNextDate}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
-        <span className="text-sm text-muted-foreground">{currentUser?.name}</span>
+        <div className="flex items-center gap-2">
+          <TemplateSelector
+            currentSchedule={schedule}
+            onApply={updateSchedule}
+          />
+          <span className="text-sm text-muted-foreground">{currentUser?.name}</span>
+        </div>
       </div>
 
       {/* 主要内容 */}
       <div className={cn(
-        "grid gap-4 lg:grid-cols-3 transition-opacity duration-200",
-        isValidating && "opacity-60"
+        "grid gap-4 lg:grid-cols-3 transition-opacity duration-150",
+        isValidating && "opacity-70"
       )}>
         {/* 左侧：紧凑时间轴 */}
         <div className="lg:col-span-2">
           <CompactTimeline
             schedule={schedule}
             onUpdate={updateSchedule}
-            currentBlockId={isToday(date) ? currentBlock?.id : undefined}
+            currentBlockId={isToday(currentDate) ? currentBlock?.id : undefined}
           />
         </div>
 
