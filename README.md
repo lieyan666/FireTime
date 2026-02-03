@@ -104,7 +104,46 @@ FireTime/
 
 ## 部署
 
-### 方式一：VPS / 服务器
+### 方式一：GitHub Actions 自动构建（推荐）
+
+项目配置了 GitHub Actions 自动编译 standalone 版本，服务器只需拉取构建产物即可运行。
+
+**首次部署：**
+
+```bash
+# 下载部署脚本
+mkdir -p /opt/firetime-deploy && cd /opt/firetime-deploy
+curl -fsSL -o deploy.sh https://raw.githubusercontent.com/lieyanc/FireTime/master/scripts/deploy.sh
+chmod +x deploy.sh
+
+# 运行配置向导
+./deploy.sh
+```
+
+> 💡 中国大陆用户使用加速地址：
+> ```bash
+> curl -fsSL -o deploy.sh https://gh-proxy.org/https://raw.githubusercontent.com/lieyanc/FireTime/master/scripts/deploy.sh
+> ```
+
+**后续更新：**
+
+```bash
+./deploy.sh          # 手动更新
+./deploy.sh check    # 检查是否有新版本
+./deploy.sh auto     # 静默自动更新（适合 cron/面板）
+```
+
+**面板/cron 集成：**
+
+```bash
+# 国际
+curl -fsSL https://raw.githubusercontent.com/lieyanc/FireTime/master/scripts/bootstrap.sh | bash
+
+# 中国大陆加速
+curl -fsSL https://gh-proxy.org/https://raw.githubusercontent.com/lieyanc/FireTime/master/scripts/bootstrap.sh | bash
+```
+
+### 方式二：手动构建
 
 ```bash
 npm install
@@ -118,7 +157,7 @@ npm run start
 pm2 start npm --name firetime -- start
 ```
 
-### 方式二：Docker
+### 方式三：Docker
 
 ```dockerfile
 FROM node:20-alpine

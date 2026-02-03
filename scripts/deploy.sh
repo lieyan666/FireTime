@@ -27,6 +27,30 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 log_step() { echo -e "${CYAN}[STEP]${NC} $1"; }
 
+# GitHub 代理（中国大陆加速）
+GH_PROXY=""
+GH_RAW_PROXY=""
+
+# 检测是否在中国大陆
+detect_china() {
+    # 检测方法：尝试访问 google.com，如果超时则认为在中国大陆
+    if ! curl -s --connect-timeout 2 -o /dev/null https://www.google.com 2>/dev/null; then
+        GH_PROXY="https://gh-proxy.org/"
+        GH_RAW_PROXY="https://gh-proxy.org/"
+        log_info "检测到中国大陆网络，使用加速代理"
+    fi
+}
+
+# 构建 API URL
+api_url() {
+    echo "${GH_PROXY}https://api.github.com$1"
+}
+
+# 构建 Raw URL
+raw_url() {
+    echo "${GH_RAW_PROXY}https://raw.githubusercontent.com$1"
+}
+
 # 检查依赖
 check_deps() {
     command -v curl >/dev/null 2>&1 || log_error "需要安装 curl"
@@ -46,7 +70,7 @@ setup_wizard() {
     # 读取默认值
     local default_repo="lieyanc/FireTime"
     local default_dir="/opt/firetime"
-    local default_port="3010"
+    local default_port="9853"
     local default_pm="pm2"
 
     # 交互式配置
@@ -114,13 +138,12 @@ get_latest_run() {
         auth_header="Authorization: Bearer $GITHUB_TOKEN"
     fi
 
+    local url=$(api_url "/repos/$REPO/actions/runs?status=success&per_page=1")
     local response
     if [ -n "$auth_header" ]; then
-        response=$(curl -s -H "$auth_header" \
-            "https://api.github.com/repos/$REPO/actions/runs?status=success&per_page=1")
+        response=$(curl -s -H "$auth_header" "$url")
     else
-        response=$(curl -s \
-            "https://api.github.com/repos/$REPO/actions/runs?status=success&per_page=1")
+        response=$(curl -s "$url")
     fi
 
     echo "$response" | jq -r '.workflow_runs[0].id'
@@ -158,29 +181,31 @@ deploy() {
         auth_header="Authorization: Bearer $GITHUB_TOKEN"
     fi
 
+    local url=$(api_url "/repos/$REPO/actions/runs/$run_id/artifacts")
     local response
     if [ -n "$auth_header" ]; then
-        response=$(curl -s -H "$auth_header" \
-            "https://api.github.com/repos/$REPO/actions/runs/$run_id/artifacts")
+        response=$(curl -s -H "$auth_header" "$url")
     else
-        response=$(curl -s \
-            "https://api.github.com/repos/$REPO/actions/runs/$run_id/artifacts")
+        response=$(curl -s "$url")
     fi
 
-    local artifact_url=$(echo "$response" | jq -r ".artifacts[] | select(.name==\"$ARTIFACT_NAME\") | .archive_download_url")
+    local artifact_id=$(echo "$response" | jq -r ".artifacts[] | select(.name==\"$ARTIFACT_NAME\") | .id")
     
-    if [ "$artifact_url" == "null" ] || [ -z "$artifact_url" ]; then
+    if [ "$artifact_id" == "null" ] || [ -z "$artifact_id" ]; then
         log_error "未找到 artifact: $ARTIFACT_NAME"
     fi
+
+    # 获取下载 URL（需要通过 API 获取临时下载链接）
+    local download_url=$(api_url "/repos/$REPO/actions/artifacts/$artifact_id/zip")
 
     log_step "下载构建产物..."
     local temp_dir=$(mktemp -d)
     cd "$temp_dir"
 
     if [ -n "$auth_header" ]; then
-        curl -sL -H "$auth_header" -o artifact.zip "$artifact_url"
+        curl -sL -H "$auth_header" -o artifact.zip "$download_url"
     else
-        curl -sL -o artifact.zip "$artifact_url"
+        curl -sL -o artifact.zip "$download_url"
     fi
 
     log_step "解压文件..."
@@ -237,6 +262,7 @@ main() {
     local mode="${1:-deploy}"
     
     check_deps
+    detect_china
 
     # 首次运行检查
     if [ ! -f "$CONFIG_FILE" ]; then
