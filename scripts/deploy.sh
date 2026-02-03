@@ -108,30 +108,37 @@ stop_existing() {
 
 # ─── 下载最新构建产物 ───
 download_artifact() {
-  log "从 GitHub Actions 下载最新构建产物..."
+  local version_file="${DEPLOY_DIR}/.artifact-version"
+
+  # 获取最新成功构建的 run_id
+  log "检查最新构建版本..."
+  local run_id
+  run_id="$(gh run list --repo "${REPO}" --workflow "build.yml" --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+
+  if [ -z "${run_id}" ] || [ "${run_id}" = "null" ]; then
+    err "没有找到成功的构建，请确认 GitHub Actions 已运行"
+    exit 1
+  fi
+
+  # 检查是否需要更新
+  if [ -f "${version_file}" ] && [ -f "${APP_DIR}/server.js" ]; then
+    local local_version
+    local_version="$(cat "${version_file}")"
+    if [ "${local_version}" = "${run_id}" ]; then
+      log "构建产物已是最新版本 (#${run_id})，跳过下载"
+      return 0
+    fi
+  fi
+
+  log "从 GitHub Actions 下载构建 #${run_id}..."
 
   local tmp_dir
   tmp_dir="$(mktemp -d)"
 
-  # 使用 gh 下载最新的 artifact
-  if ! gh run download --repo "${REPO}" --name "${ARTIFACT_NAME}" --dir "${tmp_dir}" 2>/dev/null; then
-    # 如果直接下载失败，尝试找到最新成功的 run
-    log "尝试查找最新成功的构建..."
-    local run_id
-    run_id="$(gh run list --repo "${REPO}" --workflow "build.yml" --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
-
-    if [ -z "${run_id}" ] || [ "${run_id}" = "null" ]; then
-      err "没有找到成功的构建，请确认 GitHub Actions 已运行"
-      rm -rf "${tmp_dir}"
-      exit 1
-    fi
-
-    log "下载构建 #${run_id} 的产物..."
-    if ! gh run download "${run_id}" --repo "${REPO}" --name "${ARTIFACT_NAME}" --dir "${tmp_dir}"; then
-      err "下载失败"
-      rm -rf "${tmp_dir}"
-      exit 1
-    fi
+  if ! gh run download "${run_id}" --repo "${REPO}" --name "${ARTIFACT_NAME}" --dir "${tmp_dir}"; then
+    err "下载失败"
+    rm -rf "${tmp_dir}"
+    exit 1
   fi
 
   # 查找 tarball
@@ -149,6 +156,9 @@ download_artifact() {
   rm -rf "${APP_DIR}"
   mkdir -p "${APP_DIR}"
   tar -xzf "${tarball}" -C "${APP_DIR}"
+
+  # 保存版本号
+  echo "${run_id}" > "${version_file}"
 
   rm -rf "${tmp_dir}"
   log "构建产物已就绪"

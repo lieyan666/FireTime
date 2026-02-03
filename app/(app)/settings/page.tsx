@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import useSWR, { mutate } from "swr";
 import { nanoid } from "nanoid";
 import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   Trash2,
@@ -15,6 +16,9 @@ import {
   Monitor,
   Calendar,
   Save,
+  Lock,
+  LockOpen,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,13 +42,20 @@ import {
 } from "@/components/ui/dialog";
 import { HomeworkManager } from "@/components/homework-manager";
 import { useSettings } from "@/hooks/use-settings";
-import type { ScheduleTemplate, TimeBlock, User } from "@/lib/types";
+import type { ScheduleTemplate, TimeBlock, User, UserId } from "@/lib/types";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+interface PasswordStatus {
+  user1: boolean;
+  user2: boolean;
+}
+
 export default function SettingsPage() {
+  const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [passwordStatus, setPasswordStatus] = useState<PasswordStatus | null>(null);
 
   const { data: usersData, isLoading: usersLoading } = useSWR<{ users: User[] }>(
     "/api/users",
@@ -59,6 +70,26 @@ export default function SettingsPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Load password status
+  useEffect(() => {
+    fetch("/api/auth/password")
+      .then((res) => res.json())
+      .then(setPasswordStatus)
+      .catch(console.error);
+  }, []);
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+  };
+
+  const refreshPasswordStatus = () => {
+    fetch("/api/auth/password")
+      .then((res) => res.json())
+      .then(setPasswordStatus)
+      .catch(console.error);
+  };
 
   const users = usersData?.users || [];
   const templates = templatesData?.templates || [];
@@ -165,6 +196,37 @@ export default function SettingsPage() {
               系统
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 密码管理 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Lock className="h-5 w-5" />
+            密码保护
+          </CardTitle>
+          <CardDescription>为每个用户设置登录密码，保护你的数据</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {users.map((user) => (
+            <PasswordManager
+              key={user.id}
+              userId={user.id}
+              userName={user.name}
+              hasPassword={passwordStatus?.[user.id] || false}
+              onUpdate={refreshPasswordStatus}
+            />
+          ))}
+          <Separator />
+          <Button
+            variant="outline"
+            onClick={handleLogout}
+            className="w-full"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            退出登录
+          </Button>
         </CardContent>
       </Card>
 
@@ -529,5 +591,185 @@ function TemplateDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PasswordManager({
+  userId,
+  userName,
+  hasPassword,
+  onUpdate,
+}: {
+  userId: UserId;
+  userName: string;
+  hasPassword: boolean;
+  onUpdate: () => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const resetForm = () => {
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setError("");
+    setIsEditing(false);
+  };
+
+  const handleSetPassword = async () => {
+    if (newPassword.length < 4) {
+      setError("密码至少需要4位");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("两次输入的密码不一致");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/auth/password", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          newPassword,
+          currentPassword: hasPassword ? currentPassword : undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "设置失败");
+        return;
+      }
+
+      onUpdate();
+      resetForm();
+    } catch {
+      setError("网络错误");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemovePassword = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/auth/password", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          currentPassword,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "移除失败");
+        return;
+      }
+
+      onUpdate();
+      resetForm();
+    } catch {
+      setError("网络错误");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{userName}</span>
+          {hasPassword ? (
+            <Badge variant="default" className="gap-1">
+              <Lock className="h-3 w-3" />
+              已设置
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="gap-1">
+              <LockOpen className="h-3 w-3" />
+              未设置
+            </Badge>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsEditing(!isEditing)}
+        >
+          {isEditing ? "取消" : hasPassword ? "修改" : "设置"}
+        </Button>
+      </div>
+
+      {isEditing && (
+        <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+          {hasPassword && (
+            <div className="space-y-2">
+              <Label>当前密码</Label>
+              <Input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="请输入当前密码"
+              />
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label>新密码</Label>
+            <Input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="请输入新密码（至少4位）"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>确认新密码</Label>
+            <Input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="请再次输入新密码"
+            />
+          </div>
+
+          {error && <p className="text-sm text-red-500">{error}</p>}
+
+          <div className="flex gap-2">
+            <Button
+              onClick={handleSetPassword}
+              disabled={loading || !newPassword || !confirmPassword || (hasPassword && !currentPassword)}
+              className="flex-1"
+            >
+              {loading ? "处理中..." : hasPassword ? "更新密码" : "设置密码"}
+            </Button>
+            {hasPassword && (
+              <Button
+                variant="destructive"
+                onClick={handleRemovePassword}
+                disabled={loading || !currentPassword}
+              >
+                移除密码
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
