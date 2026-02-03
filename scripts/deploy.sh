@@ -2,10 +2,11 @@
 set -euo pipefail
 
 # FireTime 部署脚本
-# 用法: ./deploy.sh [--update-only | --run-only]
-#   无参数: 自更新 → 下载最新构建 → 启动服务
+# 用法: ./deploy.sh [--update-only | --run-only | --daemon]
+#   无参数: 自更新 → 下载最新构建 → 前台启动服务
 #   --update-only: 仅自更新脚本并下载构建产物，不启动服务
-#   --run-only: 仅启动已存在的构建产物，不下载
+#   --run-only: 仅启动已存在的构建产物（前台），不下载
+#   --daemon: 自更新 → 下载最新构建 → 后台启动服务
 
 REPO="lieyanc/FireTime"
 ARTIFACT_NAME="firetime-standalone"
@@ -19,7 +20,7 @@ DATA_DIR="${DEPLOY_DIR}/data"
 PID_FILE="${DEPLOY_DIR}/firetime.pid"
 LOG_FILE="${DEPLOY_DIR}/firetime.log"
 
-PORT="${PORT:-3010}"
+PORT="${PORT:-9853}"
 HOSTNAME="${HOSTNAME:-0.0.0.0}"
 
 # ─── 颜色输出 ───
@@ -153,7 +154,7 @@ download_artifact() {
   log "构建产物已就绪"
 }
 
-# ─── 启动服务 ───
+# ─── 启动服务（前台） ───
 start_server() {
   if [ ! -f "${APP_DIR}/server.js" ]; then
     err "${APP_DIR}/server.js 不存在，请先下载构建产物"
@@ -167,6 +168,24 @@ start_server() {
   ln -sfn "${DATA_DIR}" "${APP_DIR}/data"
 
   log "启动 FireTime (port: ${PORT})..."
+  cd "${APP_DIR}"
+  exec env PORT="${PORT}" HOSTNAME="${HOSTNAME}" node server.js
+}
+
+# ─── 启动服务（后台） ───
+start_server_daemon() {
+  if [ ! -f "${APP_DIR}/server.js" ]; then
+    err "${APP_DIR}/server.js 不存在，请先下载构建产物"
+    exit 1
+  fi
+
+  stop_existing
+
+  # 确保 data 目录存在，并软链接到 app 内部
+  mkdir -p "${DATA_DIR}"
+  ln -sfn "${DATA_DIR}" "${APP_DIR}/data"
+
+  log "启动 FireTime (port: ${PORT}, 后台模式)..."
 
   cd "${APP_DIR}"
   PORT="${PORT}" HOSTNAME="${HOSTNAME}" nohup node server.js > "${LOG_FILE}" 2>&1 &
@@ -201,6 +220,11 @@ main() {
       ;;
     --run-only)
       start_server
+      ;;
+    --daemon)
+      self_update "$@"
+      download_artifact
+      start_server_daemon
       ;;
     --stop)
       stop_existing
