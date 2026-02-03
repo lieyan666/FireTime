@@ -268,18 +268,35 @@ deploy() {
 
     log_debug "Artifact ID: $artifact_id"
 
-    # 下载 artifact（使用代理）
-    local download_url=$(api_url "/repos/$REPO/actions/artifacts/$artifact_id/zip")
+    # 下载 artifact
+    # 注意：GitHub API 返回 302 重定向到 Azure Storage
+    # 1. gh-proxy 会自动跟随重定向并带上 Authorization header，导致 Azure 401 错误
+    # 2. 所以必须直接请求 GitHub API 获取 302 重定向 URL
+    # 3. Azure Storage URL 包含 SAS token，可直接访问，不需要代理
+    local api_download_url="https://api.github.com/repos/$REPO/actions/artifacts/$artifact_id/zip"
 
     log_step "下载构建产物..."
     local temp_dir=$(mktemp -d)
     cd "$temp_dir"
 
-    log_debug "下载 URL: $download_url"
+    log_debug "API 下载 URL: $api_download_url"
 
-    # -L 跟随重定向
+    # 第一步：直接请求 GitHub API 获取重定向 URL（不走代理，不跟随重定向）
+    local redirect_response
+    redirect_response=$(curl -sI -H "$auth_header" "$api_download_url")
+
+    local redirect_url=$(echo "$redirect_response" | grep -i "^location:" | sed 's/location: *//i' | tr -d '\r\n')
+
+    if [ -z "$redirect_url" ]; then
+        local http_status=$(echo "$redirect_response" | head -n1)
+        log_error "获取下载链接失败: $http_status\n请检查 token 是否有 actions:read 权限"
+    fi
+
+    log_debug "Azure Storage URL: ${redirect_url:0:80}..."
+
+    # 第二步：直接下载 Azure Storage 文件（不需要代理，URL 中已包含 SAS token）
     local http_code
-    http_code=$(curl -sL -w "%{http_code}" -H "$auth_header" -o artifact.zip "$download_url")
+    http_code=$(curl -sL -w "%{http_code}" -o artifact.zip "$redirect_url")
 
     log_debug "下载 HTTP 状态码: $http_code"
     log_debug "文件大小: $(wc -c < artifact.zip) 字节"
