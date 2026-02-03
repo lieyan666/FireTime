@@ -26,6 +26,7 @@ log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 log_step() { echo -e "${CYAN}[STEP]${NC} $1"; }
+log_debug() { [ "$DEBUG" == "1" ] && echo -e "${BLUE}[DEBUG]${NC} $1" || true; }
 
 # GitHub 代理（中国大陆加速）
 GH_PROXY=""
@@ -119,7 +120,12 @@ load_config() {
     if [ ! -f "$CONFIG_FILE" ]; then
         return 1
     fi
-    
+
+    # 验证 JSON 格式
+    if ! jq empty "$CONFIG_FILE" 2>/dev/null; then
+        log_error "配置文件 JSON 格式错误: $CONFIG_FILE"
+    fi
+
     REPO=$(jq -r '.repo' "$CONFIG_FILE")
     ARTIFACT_NAME=$(jq -r '.artifact_name' "$CONFIG_FILE")
     DEPLOY_DIR=$(jq -r '.deploy_dir' "$CONFIG_FILE")
@@ -127,11 +133,18 @@ load_config() {
     GITHUB_TOKEN=$(jq -r '.github_token // ""' "$CONFIG_FILE")
     AUTO_RESTART=$(jq -r '.auto_restart // true' "$CONFIG_FILE")
     PROCESS_MANAGER=$(jq -r '.process_manager // "pm2"' "$CONFIG_FILE")
-    
+
+    # 验证必要字段
+    if [ -z "$REPO" ] || [ "$REPO" == "null" ]; then
+        log_error "配置缺少必要字段: repo"
+    fi
+
+    log_debug "配置加载完成: repo=$REPO, deploy_dir=$DEPLOY_DIR"
     return 0
 }
 
 # 获取最新构建信息
+# 返回: run_id 或 "null"（无构建）或 "error:原因"（API 错误）
 get_latest_run() {
     local auth_header=""
     if [ -n "$GITHUB_TOKEN" ]; then
@@ -139,20 +152,56 @@ get_latest_run() {
     fi
 
     local url=$(api_url "/repos/$REPO/actions/runs?status=success&per_page=1")
+    log_debug "API URL: $url"
+
     local response
+    local http_code
     if [ -n "$auth_header" ]; then
-        response=$(curl -s -H "$auth_header" "$url")
+        response=$(curl -s -w "\n%{http_code}" -H "$auth_header" "$url")
     else
-        response=$(curl -s "$url")
+        response=$(curl -s -w "\n%{http_code}" "$url")
+    fi
+
+    # 分离响应体和状态码
+    http_code=$(echo "$response" | tail -n1)
+    response=$(echo "$response" | sed '$d')
+
+    log_debug "HTTP 状态码: $http_code"
+
+    # 检查 HTTP 状态码
+    if [ "$http_code" != "200" ]; then
+        local error_msg=$(echo "$response" | jq -r '.message // "未知错误"' 2>/dev/null || echo "无法解析响应")
+        echo "error:HTTP $http_code - $error_msg"
+        return
+    fi
+
+    # 检查响应是否为有效 JSON
+    if ! echo "$response" | jq empty 2>/dev/null; then
+        echo "error:API 返回非 JSON 响应"
+        return
+    fi
+
+    # 检查是否有 workflow_runs 数组
+    local total_count=$(echo "$response" | jq -r '.total_count // 0')
+    if [ "$total_count" == "0" ]; then
+        echo "null"
+        return
     fi
 
     echo "$response" | jq -r '.workflow_runs[0].id'
 }
 
 # 检查更新
+# 返回: "none"（无构建）| "current"（已最新）| "error:原因" | run_id（有新版本）
 check_update() {
     local latest_run=$(get_latest_run)
-    
+
+    # 检查是否为错误
+    if [[ "$latest_run" == error:* ]]; then
+        echo "$latest_run"
+        return
+    fi
+
     if [ "$latest_run" == "null" ] || [ -z "$latest_run" ]; then
         echo "none"
         return
@@ -279,6 +328,9 @@ main() {
             log_info "检查更新..."
             local status=$(check_update)
             case "$status" in
+                error:*)
+                    log_error "检查更新失败: ${status#error:}"
+                    ;;
                 none)
                     log_warn "未找到成功的构建记录"
                     exit 1
@@ -297,10 +349,19 @@ main() {
         auto)
             local status=$(check_update)
             case "$status" in
-                none|current)
+                error:*)
+                    log_error "检查更新失败: ${status#error:}"
+                    ;;
+                none)
+                    log_info "未找到成功的构建记录，跳过部署"
+                    exit 0
+                    ;;
+                current)
+                    log_info "已是最新版本，无需更新"
                     exit 0
                     ;;
                 *)
+                    log_info "发现新版本: Run ID $status"
                     deploy "$status"
                     ;;
             esac
@@ -310,6 +371,9 @@ main() {
             log_info "检查更新..."
             local status=$(check_update)
             case "$status" in
+                error:*)
+                    log_error "检查更新失败: ${status#error:}"
+                    ;;
                 none)
                     log_error "未找到成功的构建记录"
                     ;;
@@ -318,6 +382,9 @@ main() {
                     read -p "是否强制重新部署? [y/N] " confirm
                     if [[ "$confirm" =~ ^[Yy]$ ]]; then
                         local run_id=$(get_latest_run)
+                        if [[ "$run_id" == error:* ]]; then
+                            log_error "获取构建信息失败: ${run_id#error:}"
+                        fi
                         deploy "$run_id"
                     fi
                     ;;
