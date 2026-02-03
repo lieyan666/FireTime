@@ -15,17 +15,27 @@
 
 set -e
 
-# 解析参数
+# 默认值
 DEBUG=false
 SCRIPT_DIR="/opt/firetime-deploy"
 
-for arg in "$@"; do
-    case $arg in
+# 解析参数
+while [[ $# -gt 0 ]]; do
+    case $1 in
         --debug|-d)
             DEBUG=true
+            shift
+            ;;
+        --dir)
+            SCRIPT_DIR="$2"
+            shift 2
             ;;
         *)
-            SCRIPT_DIR="$arg"
+            # 如果不是选项，当作目录
+            if [[ ! "$1" =~ ^- ]]; then
+                SCRIPT_DIR="$1"
+            fi
+            shift
             ;;
     esac
 done
@@ -45,6 +55,9 @@ log_debug() {
         echo -e "${CYAN}[DEBUG]${NC} $1"
     fi
 }
+
+log_debug "DEBUG=$DEBUG"
+log_debug "SCRIPT_DIR=$SCRIPT_DIR"
 
 # GitHub 代理（中国大陆加速）
 GH_PROXY=""
@@ -75,7 +88,6 @@ log_debug "REPO=$REPO"
 log_debug "BRANCH=$BRANCH"
 log_debug "DEPLOY_SCRIPT_URL=$DEPLOY_SCRIPT_URL"
 log_debug "CONFIG_EXAMPLE_URL=$CONFIG_EXAMPLE_URL"
-log_debug "SCRIPT_DIR=$SCRIPT_DIR"
 
 # 确保目录存在
 log_debug "创建目录: $SCRIPT_DIR"
