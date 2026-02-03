@@ -27,7 +27,7 @@ jobs:
 
       - name: Prepare standalone package
         run: |
-          mkdir -p standalone-package
+          mkdir -p standalone-package/.next
           cp -r .next/standalone/* standalone-package/
           cp -r .next/static standalone-package/.next/static
           cp -r public standalone-package/public

@@ -1,0 +1,9 @@
+{
+    "repo": "lieyanc/FireTime",
+    "artifact_name": "firetime-standalone",
+    "deploy_dir": "/opt/firetime",
+    "port": 3010,
+    "github_token": "",
+    "auto_restart": true,
+    "process_manager": "pm2"
+}
