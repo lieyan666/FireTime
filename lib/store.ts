@@ -291,16 +291,53 @@ export function getDailyCheckIns(date: string): DailyCheckInData {
     const empty: DailyCheckInData = {
       date,
       checkIns: { user1: [], user2: [] },
+      homeworkProgress: { user1: [], user2: [] },
     };
     return empty;
   }
-  return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  // 确保旧数据有 homeworkProgress 字段
+  if (!data.homeworkProgress) {
+    data.homeworkProgress = { user1: [], user2: [] };
+  }
+  return data;
 }
 
 export function saveDailyCheckIns(data: DailyCheckInData): void {
   ensureDataDirs();
   const filePath = path.join(CHECKINS_DIR, `${data.date}.json`);
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+}
+
+// 获取某作业的所有进度记录（跨日期追踪）
+export function getHomeworkProgressHistory(
+  subjectId: string,
+  homeworkId: string
+): Array<{ date: string; userId: string; amount: number; source: string; timestamp: string }> {
+  const dates = getAllCheckInDates();
+  const history: Array<{ date: string; userId: string; amount: number; source: string; timestamp: string }> = [];
+
+  for (const date of dates) {
+    const data = getDailyCheckIns(date);
+    if (!data.homeworkProgress) continue;
+
+    for (const userId of ["user1", "user2"] as const) {
+      const entries = data.homeworkProgress[userId] || [];
+      for (const entry of entries) {
+        if (entry.subjectId === subjectId && entry.homeworkId === homeworkId) {
+          history.push({
+            date,
+            userId,
+            amount: entry.amount,
+            source: entry.source,
+            timestamp: entry.timestamp,
+          });
+        }
+      }
+    }
+  }
+
+  return history.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 }
 
 // 获取所有打卡日期

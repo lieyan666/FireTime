@@ -26,6 +26,10 @@ export async function PUT(
 ) {
   const { date } = await params;
   const body = await request.json();
-  saveDailyCheckIns({ date, checkIns: body.checkIns });
+  saveDailyCheckIns({
+    date,
+    checkIns: body.checkIns,
+    homeworkProgress: body.homeworkProgress,
+  });
   return NextResponse.json({ success: true });
 }

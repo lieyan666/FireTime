@@ -6,14 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm run dev          # Start dev server (localhost:3010)
-npm run build        # Production build
+npm run build        # Full production build
 npm run start        # Start production server (localhost:3010)
-npm run lint         # ESLint (eslint-config-next with core-web-vitals + typescript)
+npm run lint         # ESLint
+npx tsc --noEmit     # Fast type-check (preferred for validation)
 ```
 
-Dev and production servers both run on port 3010. No test framework is configured — use `npm run build` to verify changes compile correctly.
+Dev and production servers both run on port 3010.
 
-If `npm run build` shows errors unrelated to your changes, they were likely introduced by another Claude Code instance or the user — ignore them and focus on your own work.
+**Validation:** Use `npx tsc --noEmit` to quickly verify TypeScript compiles. It's faster than `npm run build`. Use `npm run build` only when you need to catch Next.js-specific issues (e.g., Server/Client Component boundary errors).
+
+If type-check or build shows errors unrelated to your changes, they were likely introduced by another Claude Code instance or the user — ignore them and focus on your own work.
 
 ## Architecture
 

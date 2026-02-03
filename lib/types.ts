@@ -139,6 +139,7 @@ export interface DailyCheckIn {
   completed: boolean;
   amount: number; // 实际完成量
   completedAt?: string; // 完成时间
+  syncedAmount?: number; // 已同步到作业进度的量（防止重复刷进度）
 }
 
 // 用户每日打卡数据
@@ -151,6 +152,24 @@ export interface UserDailyCheckIns {
 export interface DailyCheckInData {
   date: string;
   checkIns: UserDailyCheckIns;
+  homeworkProgress?: UserHomeworkProgress; // 当日作业进度记录
+}
+
+// 用户每日作业进度
+export interface UserHomeworkProgress {
+  user1: HomeworkProgressEntry[];
+  user2: HomeworkProgressEntry[];
+}
+
+// 作业进度条目（用于追踪每天的完成情况）
+export interface HomeworkProgressEntry {
+  subjectId: string;
+  homeworkId: string;
+  amount: number; // 完成量
+  source: "checkin" | "manual"; // 来源：打卡自动记录 或 手动调整
+  taskId?: string; // 如果来自打卡，记录任务ID
+  timestamp: string; // 记录时间
+  note?: string; // 备注
 }
 
 // 每日任务列表
