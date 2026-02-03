@@ -27,10 +27,19 @@ jobs:
 
       - name: Prepare standalone package
         run: |
-          mkdir -p standalone-package/.next
-          cp -r .next/standalone/* standalone-package/
+          mkdir -p standalone-package
+          # 使用 /. 确保复制所有文件包括隐藏目录 (.next)
+          cp -r .next/standalone/. standalone-package/
           cp -r .next/static standalone-package/.next/static
           cp -r public standalone-package/public
+
+      - name: Verify standalone package
+        run: |
+          echo "=== standalone-package contents ==="
+          ls -la standalone-package/
+          echo "=== .next directory ==="
+          ls -la standalone-package/.next/
+          test -f standalone-package/.next/BUILD_ID && echo "✓ BUILD_ID exists"
 
       - name: Create tarball
         run: tar -czf firetime-standalone.tar.gz -C standalone-package .
