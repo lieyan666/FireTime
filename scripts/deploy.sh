@@ -245,39 +245,57 @@ check_update() {
 # 下载并部署
 deploy() {
     local run_id="$1"
-    
+
     log_step "获取 artifact 下载链接..."
-    
-    local auth_header=""
-    if [ -n "$GITHUB_TOKEN" ]; then
-        auth_header="Authorization: Bearer $GITHUB_TOKEN"
+
+    # artifact 下载必须要认证
+    if [ -z "$GITHUB_TOKEN" ]; then
+        log_error "下载 artifact 需要 GITHUB_TOKEN，请配置后重试"
     fi
 
+    local auth_header="Authorization: Bearer $GITHUB_TOKEN"
+
+    # 获取 artifacts 列表（这里可以用代理）
     local url=$(api_url "/repos/$REPO/actions/runs/$run_id/artifacts")
     local response
-    if [ -n "$auth_header" ]; then
-        response=$(curl -s -H "$auth_header" "$url")
-    else
-        response=$(curl -s "$url")
-    fi
+    response=$(curl -s -H "$auth_header" "$url")
 
     local artifact_id=$(echo "$response" | jq -r ".artifacts[] | select(.name==\"$ARTIFACT_NAME\") | .id")
-    
+
     if [ "$artifact_id" == "null" ] || [ -z "$artifact_id" ]; then
-        log_error "未找到 artifact: $ARTIFACT_NAME"
+        log_error "未找到 artifact: $ARTIFACT_NAME (可能已过期，GitHub 只保留 90 天)"
     fi
 
-    # 获取下载 URL（需要通过 API 获取临时下载链接）
-    local download_url=$(api_url "/repos/$REPO/actions/artifacts/$artifact_id/zip")
+    log_debug "Artifact ID: $artifact_id"
+
+    # 下载 artifact（不使用代理！GitHub 会 302 重定向到真实下载地址）
+    # 真实下载地址在 pipelines.actions.githubusercontent.com，不需要代理
+    local download_url="https://api.github.com/repos/$REPO/actions/artifacts/$artifact_id/zip"
 
     log_step "下载构建产物..."
     local temp_dir=$(mktemp -d)
     cd "$temp_dir"
 
-    if [ -n "$auth_header" ]; then
-        curl -sL -H "$auth_header" -o artifact.zip "$download_url"
-    else
-        curl -sL -o artifact.zip "$download_url"
+    log_debug "下载 URL: $download_url"
+
+    # -L 跟随重定向，重定向后的请求不需要认证头
+    local http_code
+    http_code=$(curl -sL -w "%{http_code}" -H "$auth_header" -o artifact.zip "$download_url")
+
+    log_debug "下载 HTTP 状态码: $http_code"
+
+    # 验证下载结果
+    if [ "$http_code" != "200" ]; then
+        local error_content=$(head -c 500 artifact.zip 2>/dev/null || echo "无法读取")
+        log_debug "响应内容: $error_content"
+        log_error "下载失败，HTTP $http_code (检查 token 是否有 actions:read 权限)"
+    fi
+
+    # 验证是否为有效的 zip 文件
+    if ! unzip -t artifact.zip >/dev/null 2>&1; then
+        local file_type=$(file artifact.zip 2>/dev/null || echo "unknown")
+        log_debug "文件类型: $file_type"
+        log_error "下载的文件不是有效的 zip 格式，可能是 token 权限不足或网络问题"
     fi
 
     log_step "解压文件..."
