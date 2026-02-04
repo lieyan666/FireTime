@@ -145,45 +145,46 @@ function HeaderContent() {
           <span className="font-bold">FireTime</span>
         </div>
 
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <a
-                href="https://github.com/lieyanqzu/FireTime"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Github className="h-3.5 w-3.5" />
-                <span className="font-mono">{BUILD_INFO.commitId}</span>
-                {BUILD_INFO.buildId !== "local" && (
-                  <span className="font-mono">#{BUILD_INFO.buildId}</span>
-                )}
-              </a>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>查看 GitHub 仓库</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
         <div className="flex flex-col text-xs text-muted-foreground">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-1">
-                  <Server className="h-3 w-3" />
-                  <span className="font-mono">{formatBuildTime(BUILD_INFO.buildTime)}</span>
-                </div>
+                <a
+                  href="https://github.com/lieyanqzu/FireTime"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 hover:text-foreground transition-colors"
+                >
+                  <Github className="h-3.5 w-3.5" />
+                  <span className="font-mono">{BUILD_INFO.commitId}</span>
+                  {BUILD_INFO.buildId !== "local" && (
+                    <span className="font-mono">#{BUILD_INFO.buildId}</span>
+                  )}
+                </a>
               </TooltipTrigger>
               <TooltipContent>
-                <p>构建时间</p>
+                <p>查看 GitHub 仓库</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <div className="flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            <span className="font-mono">{serverTime}</span>
+          <div className="flex items-center gap-3">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1">
+                    <Server className="h-3 w-3" />
+                    <span className="font-mono">{formatBuildTime(BUILD_INFO.buildTime)}</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>构建时间</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span className="font-mono">{serverTime}</span>
+            </div>
           </div>
         </div>
       </div>

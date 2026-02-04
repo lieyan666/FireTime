@@ -29,8 +29,15 @@ import {
   Timer,
   ChevronRight,
   Target,
-  ArrowRight,
+  GripVertical,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import type {
   TimeBlock,
   DailyTask,
@@ -429,75 +436,12 @@ export default function DashboardPage() {
 
       {/* ─── Homework Grid ─── */}
       {settings?.subjects && settings.subjects.length > 0 && (
-        <div className="rounded-xl border p-3">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-1.5 text-sm font-medium">
-              <BookOpen className="h-4 w-4 text-green-500" />
-              作业进度明细
-            </div>
-            <Link
-              href="/settings"
-              className="text-xs text-muted-foreground hover:text-primary flex items-center gap-0.5"
-            >
-              管理 <ChevronRight className="h-3 w-3" />
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
-            {settings.subjects.map((subject) => {
-              const assignedTo = subject.assignedTo || "both";
-              const showUser1 = assignedTo === "both" || assignedTo === "user1";
-              const showUser2 = assignedTo === "both" || assignedTo === "user2";
-
-              return (
-                <div key={subject.id} className="space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <div
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: subject.color }}
-                    />
-                    <span className="text-xs font-medium">{subject.name}</span>
-                    {assignedTo !== "both" && (
-                      <span className="text-[9px] text-muted-foreground">
-                        ({assignedTo === "user1" ? users[0]?.name : users[1]?.name})
-                      </span>
-                    )}
-                  </div>
-                  {subject.homework.map((hw) => (
-                    <HomeworkSlider
-                      key={hw.id}
-                      subjectId={subject.id}
-                      homework={hw}
-                      showUser1={showUser1}
-                      showUser2={showUser2}
-                      user1Color={users[0]?.progressColor || "#3b82f6"}
-                      user2Color={users[1]?.progressColor || "#22c55e"}
-                      user1Name={users[0]?.name || "用户1"}
-                      user2Name={users[1]?.name || "用户2"}
-                      onUpdate={updateHomeworkProgress}
-                    />
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-          {/* 图例 */}
-          <div className="flex items-center justify-center gap-4 mt-3 pt-2 border-t text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: users[0]?.progressColor || "#3b82f6" }}
-              />
-              {users[0]?.name || "用户1"}
-            </span>
-            <span className="flex items-center gap-1">
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: users[1]?.progressColor || "#22c55e" }}
-              />
-              {users[1]?.name || "用户2"}
-            </span>
-          </div>
-        </div>
+        <HomeworkGrid
+          subjects={settings.subjects}
+          users={users}
+          onUpdateSubjects={updateSubjects}
+          onUpdateProgress={updateHomeworkProgress}
+        />
       )}
     </div>
   );
@@ -881,6 +825,134 @@ function CompactTodoList({
   );
 }
 
+// === Homework Grid with Drag & Drop ===
+function HomeworkGrid({
+  subjects,
+  users,
+  onUpdateSubjects,
+  onUpdateProgress,
+}: {
+  subjects: Subject[];
+  users: User[];
+  onUpdateSubjects: (subjects: Subject[]) => void;
+  onUpdateProgress: (subjectId: string, homeworkId: string, value: number, userId: UserId) => void;
+}) {
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [orderedSubjects, setOrderedSubjects] = useState(subjects);
+
+  // Sync with external subjects
+  useMemo(() => {
+    setOrderedSubjects(subjects);
+  }, [subjects]);
+
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+
+    const newSubjects = [...orderedSubjects];
+    const draggedItem = newSubjects[draggedIndex];
+    newSubjects.splice(draggedIndex, 1);
+    newSubjects.splice(index, 0, draggedItem);
+    setOrderedSubjects(newSubjects);
+    setDraggedIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    if (draggedIndex !== null) {
+      onUpdateSubjects(orderedSubjects);
+    }
+    setDraggedIndex(null);
+  };
+
+  return (
+    <div className="rounded-xl border p-3">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-1.5 text-sm font-medium">
+          <BookOpen className="h-4 w-4 text-green-500" />
+          作业进度明细
+          <span className="text-[10px] text-muted-foreground font-normal ml-1">拖拽调整顺序 · 点击编辑进度</span>
+        </div>
+        <Link
+          href="/settings"
+          className="text-xs text-muted-foreground hover:text-primary flex items-center gap-0.5"
+        >
+          管理 <ChevronRight className="h-3 w-3" />
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
+        {orderedSubjects.map((subject, index) => {
+          const assignedTo = subject.assignedTo || "both";
+          const showUser1 = assignedTo === "both" || assignedTo === "user1";
+          const showUser2 = assignedTo === "both" || assignedTo === "user2";
+
+          return (
+            <div
+              key={subject.id}
+              draggable
+              onDragStart={() => handleDragStart(index)}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDragEnd={handleDragEnd}
+              className={cn(
+                "space-y-1.5 p-1.5 -m-1.5 rounded-md transition-all",
+                draggedIndex === index && "opacity-50 bg-muted"
+              )}
+            >
+              <div className="flex items-center gap-1">
+                <GripVertical className="h-3 w-3 text-muted-foreground/50 cursor-grab shrink-0" />
+                <div
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: subject.color }}
+                />
+                <span className="text-xs font-medium">{subject.name}</span>
+                {assignedTo !== "both" && (
+                  <span className="text-[9px] text-muted-foreground">
+                    ({assignedTo === "user1" ? users[0]?.name : users[1]?.name})
+                  </span>
+                )}
+              </div>
+              {subject.homework.map((hw) => (
+                <HomeworkSlider
+                  key={hw.id}
+                  subjectId={subject.id}
+                  homework={hw}
+                  showUser1={showUser1}
+                  showUser2={showUser2}
+                  user1Color={users[0]?.progressColor || "#3b82f6"}
+                  user2Color={users[1]?.progressColor || "#22c55e"}
+                  user1Name={users[0]?.name || "用户1"}
+                  user2Name={users[1]?.name || "用户2"}
+                  onUpdate={onUpdateProgress}
+                />
+              ))}
+            </div>
+          );
+        })}
+      </div>
+      {/* 图例 */}
+      <div className="flex items-center justify-center gap-4 mt-3 pt-2 border-t text-[10px] text-muted-foreground">
+        <span className="flex items-center gap-1">
+          <span
+            className="w-2 h-2 rounded-full"
+            style={{ backgroundColor: users[0]?.progressColor || "#3b82f6" }}
+          />
+          {users[0]?.name || "用户1"}
+        </span>
+        <span className="flex items-center gap-1">
+          <span
+            className="w-2 h-2 rounded-full"
+            style={{ backgroundColor: users[1]?.progressColor || "#22c55e" }}
+          />
+          {users[1]?.name || "用户2"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // === Homework Slider Component ===
 function HomeworkSlider({
   subjectId,
@@ -975,17 +1047,13 @@ function HomeworkSlider({
       </div>
 
       {/* Edit Dialog */}
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="bg-background border rounded-lg p-4 w-72 space-y-4 shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="font-medium text-sm">{homework.title}</div>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="w-72 p-4 gap-4" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle className="text-sm">{homework.title}</DialogTitle>
+          </DialogHeader>
 
+          <div className="space-y-4">
             {showUser1 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
@@ -1045,18 +1113,18 @@ function HomeworkSlider({
                 />
               </div>
             )}
-
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>
-                取消
-              </Button>
-              <Button className="flex-1" onClick={handleSave}>
-                保存
-              </Button>
-            </div>
           </div>
-        </div>
-      )}
+
+          <DialogFooter className="flex-row gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>
+              取消
+            </Button>
+            <Button className="flex-1" onClick={handleSave}>
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
