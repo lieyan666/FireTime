@@ -21,7 +21,7 @@ PID_FILE="${DEPLOY_DIR}/firetime.pid"
 LOG_FILE="${DEPLOY_DIR}/firetime.log"
 
 PORT="${PORT:-9853}"
-HOSTNAME="${HOSTNAME:-0.0.0.0}"
+BIND_HOST="${BIND_HOST:-0.0.0.0}"
 
 # ─── 颜色输出 ───
 RED='\033[0;31m'
@@ -179,7 +179,7 @@ start_server() {
 
   log "启动 FireTime (port: ${PORT})..."
   cd "${APP_DIR}"
-  exec env PORT="${PORT}" HOSTNAME="${HOSTNAME}" node server.js
+  exec env PORT="${PORT}" HOSTNAME="${BIND_HOST}" node server.js
 }
 
 # ─── 启动服务（后台） ───
@@ -198,7 +198,7 @@ start_server_daemon() {
   log "启动 FireTime (port: ${PORT}, 后台模式)..."
 
   cd "${APP_DIR}"
-  PORT="${PORT}" HOSTNAME="${HOSTNAME}" nohup node server.js > "${LOG_FILE}" 2>&1 &
+  PORT="${PORT}" HOSTNAME="${BIND_HOST}" nohup node server.js > "${LOG_FILE}" 2>&1 &
   local new_pid=$!
   echo "${new_pid}" > "${PID_FILE}"
   cd - > /dev/null
@@ -207,7 +207,7 @@ start_server_daemon() {
   sleep 2
   if kill -0 "${new_pid}" 2>/dev/null; then
     log "FireTime 已启动 (PID: ${new_pid})"
-    log "地址: http://${HOSTNAME}:${PORT}"
+    log "地址: http://${BIND_HOST}:${PORT}"
     log "日志: ${LOG_FILE}"
     log "PID 文件: ${PID_FILE}"
   else

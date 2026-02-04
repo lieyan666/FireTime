@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CheckInPage() {
   const today = getToday();
-  const { users } = useUser();
+  const { users, currentUserId } = useUser();
   const { settings } = useSettings();
   const { tasks: dailyTasks, addTask, removeTask, editTask } = useDailyTasks();
   const {
@@ -46,6 +46,7 @@ export default function CheckInPage() {
         <DailyTaskManager
           tasks={dailyTasks}
           subjects={settings?.subjects}
+          userId={currentUserId}
           onAdd={addTask}
           onRemove={removeTask}
           onEdit={editTask}

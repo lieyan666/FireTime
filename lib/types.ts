@@ -60,7 +60,10 @@ export interface HomeworkItem {
   id: string;
   title: string;
   totalPages: number;
-  completedPages: number;
+  completedPages: {
+    user1: number;
+    user2: number;
+  };
   unit: string;
 }
 
@@ -69,6 +72,8 @@ export interface Subject {
   name: string;
   color: string;
   homework: HomeworkItem[];
+  // 学科归属: "both" = 共享, "user1" = 仅用户1, "user2" = 仅用户2
+  assignedTo?: "both" | "user1" | "user2";
 }
 
 // 待办状态: pending -> in_progress -> completed

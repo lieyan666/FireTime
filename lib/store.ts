@@ -74,7 +74,7 @@ export function getSettings(): AppSettings {
           name: "数学",
           color: "#3b82f6",
           homework: [
-            { id: "math-1", title: "寒假作业本", totalPages: 60, completedPages: 0, unit: "页" },
+            { id: "math-1", title: "寒假作业本", totalPages: 60, completedPages: { user1: 0, user2: 0 }, unit: "页" },
           ],
         },
         {
@@ -82,7 +82,7 @@ export function getSettings(): AppSettings {
           name: "语文",
           color: "#ef4444",
           homework: [
-            { id: "chinese-1", title: "阅读理解", totalPages: 30, completedPages: 0, unit: "篇" },
+            { id: "chinese-1", title: "阅读理解", totalPages: 30, completedPages: { user1: 0, user2: 0 }, unit: "篇" },
           ],
         },
         {
@@ -90,7 +90,7 @@ export function getSettings(): AppSettings {
           name: "英语",
           color: "#22c55e",
           homework: [
-            { id: "english-1", title: "单词本", totalPages: 500, completedPages: 0, unit: "词" },
+            { id: "english-1", title: "单词本", totalPages: 500, completedPages: { user1: 0, user2: 0 }, unit: "词" },
           ],
         },
         {
@@ -98,7 +98,7 @@ export function getSettings(): AppSettings {
           name: "物理",
           color: "#f59e0b",
           homework: [
-            { id: "physics-1", title: "练习册", totalPages: 40, completedPages: 0, unit: "页" },
+            { id: "physics-1", title: "练习册", totalPages: 40, completedPages: { user1: 0, user2: 0 }, unit: "页" },
           ],
         },
         {
@@ -106,7 +106,7 @@ export function getSettings(): AppSettings {
           name: "化学",
           color: "#8b5cf6",
           homework: [
-            { id: "chemistry-1", title: "实验报告", totalPages: 15, completedPages: 0, unit: "篇" },
+            { id: "chemistry-1", title: "实验报告", totalPages: 15, completedPages: { user1: 0, user2: 0 }, unit: "篇" },
           ],
         },
         {
@@ -114,7 +114,7 @@ export function getSettings(): AppSettings {
           name: "生物",
           color: "#06b6d4",
           homework: [
-            { id: "biology-1", title: "知识梳理", totalPages: 25, completedPages: 0, unit: "页" },
+            { id: "biology-1", title: "知识梳理", totalPages: 25, completedPages: { user1: 0, user2: 0 }, unit: "页" },
           ],
         },
       ],
@@ -122,7 +122,22 @@ export function getSettings(): AppSettings {
     fs.writeFileSync(filePath, JSON.stringify(defaultSettings, null, 2));
     return defaultSettings;
   }
-  return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  const settings = JSON.parse(fs.readFileSync(filePath, "utf-8")) as AppSettings;
+  // Migrate old data format: convert completedPages from number to object
+  let needsSave = false;
+  for (const subject of settings.subjects) {
+    for (const hw of subject.homework) {
+      if (typeof hw.completedPages === "number") {
+        // Migrate: assign old value to user1, set user2 to 0
+        (hw as any).completedPages = { user1: hw.completedPages as unknown as number, user2: 0 };
+        needsSave = true;
+      }
+    }
+  }
+  if (needsSave) {
+    fs.writeFileSync(filePath, JSON.stringify(settings, null, 2));
+  }
+  return settings;
 }
 
 export function saveSettings(settings: AppSettings): void {

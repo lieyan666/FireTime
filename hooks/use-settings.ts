@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import type { AppSettings, Subject, HomeworkItem } from "@/lib/types";
+import type { AppSettings, Subject, UserId } from "@/lib/types";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -33,7 +33,8 @@ export function useSettings() {
   const updateHomeworkProgress = async (
     subjectId: string,
     homeworkId: string,
-    completedPages: number
+    completedPages: number,
+    userId: UserId
   ) => {
     if (!settings) return;
     const newSubjects = settings.subjects.map((s) => {
@@ -41,7 +42,9 @@ export function useSettings() {
         return {
           ...s,
           homework: s.homework.map((h) =>
-            h.id === homeworkId ? { ...h, completedPages } : h
+            h.id === homeworkId
+              ? { ...h, completedPages: { ...h.completedPages, [userId]: completedPages } }
+              : h
           ),
         };
       }
@@ -80,8 +83,8 @@ export function getVacationProgress(
   return { daysPassed, totalDays, percentage, daysRemaining };
 }
 
-// 计算学科作业整体进度
-export function getSubjectProgress(subjects: Subject[]): {
+// 计算学科作业整体进度（按用户）
+export function getSubjectProgress(subjects: Subject[], userId: UserId): {
   totalItems: number;
   completedItems: number;
   percentage: number;
@@ -96,7 +99,7 @@ export function getSubjectProgress(subjects: Subject[]): {
     let subjectCompleted = 0;
     for (const hw of subject.homework) {
       subjectTotal += hw.totalPages;
-      subjectCompleted += hw.completedPages;
+      subjectCompleted += hw.completedPages[userId] || 0;
     }
     totalItems += subjectTotal;
     completedItems += subjectCompleted;

@@ -113,7 +113,7 @@ const categoryColors: Record<string, string> = {
 
 export default function DashboardPage() {
   const today = getToday();
-  const { users, currentUser } = useUser();
+  const { users, currentUser, currentUserId } = useUser();
   const { dayData, isLoading: dayLoading } = useDayData(today, "user1");
   const { settings, isLoading: settingsLoading, updateSubjects } = useSettings();
   const {
@@ -156,8 +156,8 @@ export default function DashboardPage() {
 
   const homeworkInfo = useMemo(() => {
     if (!settings?.subjects) return null;
-    return getSubjectProgress(settings.subjects);
-  }, [settings?.subjects]);
+    return getSubjectProgress(settings.subjects, currentUserId);
+  }, [settings?.subjects, currentUserId]);
 
   const schedule1 = dayData?.user1?.schedule || [];
   const schedule2 = dayData?.user2?.schedule || [];
@@ -242,6 +242,7 @@ export default function DashboardPage() {
           <DailyTaskManager
             tasks={dailyTasks}
             subjects={settings?.subjects}
+            userId={currentUserId}
             onAdd={addTask}
             onRemove={removeTask}
             onEdit={editTask}
@@ -487,7 +488,7 @@ export default function DashboardPage() {
                 0
               );
               const completed = subject.homework.reduce(
-                (sum, h) => sum + h.completedPages,
+                (sum, h) => sum + (h.completedPages[currentUserId] || 0),
                 0
               );
               const pct = total > 0 ? (completed / total) * 100 : 0;

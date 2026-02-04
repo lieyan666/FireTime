@@ -357,11 +357,12 @@ export function DailyPKView({
 interface TaskFormProps {
   task?: DailyTask;
   subjects: Subject[];
+  userId: UserId;
   onSave: (task: DailyTask) => void;
   onCancel: () => void;
 }
 
-function TaskForm({ task, subjects, onSave, onCancel }: TaskFormProps) {
+function TaskForm({ task, subjects, userId, onSave, onCancel }: TaskFormProps) {
   const [title, setTitle] = useState(task?.title || "");
   const [target, setTarget] = useState(task?.target?.toString() || "10");
   const [unit, setUnit] = useState(task?.unit || "页");
@@ -456,7 +457,7 @@ function TaskForm({ task, subjects, onSave, onCancel }: TaskFormProps) {
               <SelectItem value="none">不关联</SelectItem>
               {homeworkItems.map((h) => (
                 <SelectItem key={h.id} value={h.id}>
-                  {h.title} ({h.completedPages}/{h.totalPages} {h.unit})
+                  {h.title} ({h.completedPages[userId] || 0}/{h.totalPages} {h.unit})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -483,6 +484,7 @@ function TaskForm({ task, subjects, onSave, onCancel }: TaskFormProps) {
 interface DailyTaskManagerProps {
   tasks: DailyTask[];
   subjects?: Subject[];
+  userId: UserId;
   onAdd: (task: DailyTask) => void;
   onRemove: (taskId: string) => void;
   onEdit: (taskId: string, updates: Partial<DailyTask>) => void;
@@ -491,6 +493,7 @@ interface DailyTaskManagerProps {
 export function DailyTaskManager({
   tasks,
   subjects = [],
+  userId,
   onAdd,
   onRemove,
   onEdit,
@@ -535,6 +538,7 @@ export function DailyTaskManager({
           <TaskForm
             task={editingTask || undefined}
             subjects={subjects}
+            userId={userId}
             onSave={handleSave}
             onCancel={() => { setEditingTask(null); setIsAdding(false); }}
           />

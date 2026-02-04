@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/dialog";
 import { HomeworkManager } from "@/components/homework-manager";
 import { useSettings } from "@/hooks/use-settings";
+import { useUser } from "@/components/user-provider";
 import type { ScheduleTemplate, TimeBlock, User, UserId } from "@/lib/types";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -54,6 +55,7 @@ interface PasswordStatus {
 export default function SettingsPage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { currentUserId } = useUser();
   const [mounted, setMounted] = useState(false);
   const [passwordStatus, setPasswordStatus] = useState<PasswordStatus | null>(null);
 
@@ -293,6 +295,7 @@ export default function SettingsPage() {
         <HomeworkManager
           subjects={settings.subjects}
           onUpdateSubjects={updateSubjects}
+          userId={currentUserId}
         />
       )}
 

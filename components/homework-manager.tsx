@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { nanoid } from "nanoid";
-import { Plus, Trash2, Edit2, BookOpen, GraduationCap } from "lucide-react";
+import { Plus, Trash2, Edit2, GraduationCap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import type { Subject, HomeworkItem } from "@/lib/types";
+import type { Subject, HomeworkItem, UserId } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { getSubjectProgress } from "@/hooks/use-settings";
 import { ChevronDown } from "lucide-react";
@@ -29,19 +29,21 @@ import { ChevronDown } from "lucide-react";
 interface HomeworkManagerProps {
   subjects: Subject[];
   onUpdateSubjects: (subjects: Subject[]) => void;
+  userId: UserId;
   compact?: boolean;
 }
 
 export function HomeworkManager({
   subjects,
   onUpdateSubjects,
+  userId,
   compact = false,
 }: HomeworkManagerProps) {
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   const [isAddSubjectOpen, setIsAddSubjectOpen] = useState(false);
   const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(new Set());
 
-  const overallProgress = getSubjectProgress(subjects);
+  const overallProgress = getSubjectProgress(subjects, userId);
 
   const toggleExpanded = (id: string) => {
     const next = new Set(expandedSubjects);
@@ -75,7 +77,13 @@ export function HomeworkManager({
             ...s,
             homework: s.homework.map((h) =>
               h.id === homeworkId
-                ? { ...h, completedPages: Math.min(h.totalPages, Math.max(0, value)) }
+                ? {
+                    ...h,
+                    completedPages: {
+                      ...h.completedPages,
+                      [userId]: Math.min(h.totalPages, Math.max(0, value)),
+                    },
+                  }
                 : h
             ),
           };
@@ -219,18 +227,18 @@ export function HomeworkManager({
                             <div className="flex items-center justify-between text-sm">
                               <span>{hw.title}</span>
                               <span className="text-muted-foreground">
-                                {hw.completedPages}/{hw.totalPages} {hw.unit}
+                                {hw.completedPages[userId] || 0}/{hw.totalPages} {hw.unit}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
                               <Progress
-                                value={(hw.completedPages / hw.totalPages) * 100}
+                                value={((hw.completedPages[userId] || 0) / hw.totalPages) * 100}
                                 className="h-2 flex-1"
                               />
                               <Input
                                 type="number"
                                 className="w-20 h-7 text-sm"
-                                value={hw.completedPages}
+                                value={hw.completedPages[userId] || 0}
                                 min={0}
                                 max={hw.totalPages}
                                 onChange={(e) =>
@@ -320,7 +328,7 @@ function SubjectForm({
         id: nanoid(),
         title: "新作业",
         totalPages: 10,
-        completedPages: 0,
+        completedPages: { user1: 0, user2: 0 },
         unit: "页",
       },
     ]);
