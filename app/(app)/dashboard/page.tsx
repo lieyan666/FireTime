@@ -7,9 +7,10 @@ import { useUser } from "@/components/user-provider";
 import { useDayData } from "@/hooks/use-day-data";
 import { useSettings, getVacationProgress, getSubjectProgress } from "@/hooks/use-settings";
 import { useGlobalTodos } from "@/hooks/use-global-todos";
-import { useDailyCheckIns, useDailyTasks } from "@/hooks/use-daily-tasks";
+import { useDailyCheckIns } from "@/hooks/use-daily-tasks";
 import { useClock } from "@/hooks/use-clock";
 import { getToday, parseTime, parseDate } from "@/lib/dates";
+import { filterDailyTasksForUser } from "@/lib/daily-tasks";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -128,7 +129,6 @@ export default function DashboardPage() {
     cycleTodoStatus,
     deleteTodo,
   } = useGlobalTodos();
-  const { tasks: dailyTasks, addTask, removeTask, editTask } = useDailyTasks();
   const {
     checkIns,
     streaks,
@@ -190,13 +190,19 @@ export default function DashboardPage() {
     );
   };
 
-  const checkIn1Count = checkInTasks.filter((t) =>
+  const subjects = settings?.subjects || [];
+  const checkInTasks1 = filterDailyTasksForUser(checkInTasks, subjects, "user1");
+  const checkInTasks2 = filterDailyTasksForUser(checkInTasks, subjects, "user2");
+
+  const checkIn1Count = checkInTasks1.filter((t) =>
     checkIns.user1.find((c) => c.taskId === t.id)?.completed
   ).length;
-  const checkIn2Count = checkInTasks.filter((t) =>
+  const checkIn2Count = checkInTasks2.filter((t) =>
     checkIns.user2.find((c) => c.taskId === t.id)?.completed
   ).length;
-  const totalCheckins = checkInTasks.length;
+
+  const totalCheckins1 = checkInTasks1.length;
+  const totalCheckins2 = checkInTasks2.length;
 
   // Loading skeleton
   if (isLoading) {
@@ -241,6 +247,7 @@ export default function DashboardPage() {
             currentBlock={cb1}
             nextBlock={nb1}
             currentTime={currentTime}
+            todos={todos.user1}
           />
           {/* User 2 Timeline */}
           <TimelineSlot
@@ -249,6 +256,7 @@ export default function DashboardPage() {
             currentBlock={cb2}
             nextBlock={nb2}
             currentTime={currentTime}
+            todos={todos.user2}
           />
         </div>
       </div>
@@ -346,7 +354,7 @@ export default function DashboardPage() {
                   {checkIn1Count}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  /{totalCheckins}
+                  /{totalCheckins1}
                 </span>
               </div>
               <div className="text-[10px] text-muted-foreground flex items-center gap-0.5">
@@ -365,7 +373,7 @@ export default function DashboardPage() {
                   {checkIn2Count}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  /{totalCheckins}
+                  /{totalCheckins2}
                 </span>
               </div>
               <div className="text-[10px] text-muted-foreground flex items-center gap-0.5">
@@ -401,17 +409,17 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 divide-x px-1 pb-3">
             <CheckInColumn
               user={user1}
-              tasks={checkInTasks}
+              tasks={checkInTasks1}
               checkIns={checkIns.user1}
               streak={streaks.user1}
-              subjects={settings?.subjects || []}
+              subjects={subjects}
             />
             <CheckInColumn
               user={user2}
-              tasks={checkInTasks}
+              tasks={checkInTasks2}
               checkIns={checkIns.user2}
               streak={streaks.user2}
-              subjects={settings?.subjects || []}
+              subjects={subjects}
             />
           </div>
         </div>
@@ -454,14 +462,33 @@ function TimelineSlot({
   currentBlock,
   nextBlock,
   currentTime,
+  todos,
 }: {
   user: User;
   prevBlock: TimeBlock | null;
   currentBlock: TimeBlock | null;
   nextBlock: TimeBlock | null;
   currentTime: string;
+  todos: GlobalTodoItem[];
 }) {
   const progress = currentBlock ? getBlockProgress(currentBlock, currentTime) : 0;
+  const currentLinkedTodos = useMemo(() => {
+    if (!currentBlock) return [];
+    const order: Record<TodoStatus, number> = {
+      in_progress: 0,
+      pending: 1,
+      completed: 2,
+    };
+    return todos
+      .filter((t) => t.linkedBlockId === currentBlock.id && t.status !== "completed")
+      .sort((a, b) => {
+        if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
+        if (a.deadline && !b.deadline) return -1;
+        if (!a.deadline && b.deadline) return 1;
+        if (a.deadline && b.deadline) return a.deadline.localeCompare(b.deadline);
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+  }, [currentBlock, todos]);
 
   return (
     <div className="space-y-2">
@@ -484,6 +511,7 @@ function TimelineSlot({
             block={currentBlock}
             type="current"
             progress={progress}
+            linkedTodos={currentLinkedTodos}
           />
         ) : (
           <div className="flex items-center gap-2 py-1.5 px-2 rounded-md bg-muted/30">
@@ -516,12 +544,24 @@ function TimeBlockItem({
   block,
   type,
   progress,
+  linkedTodos,
 }: {
   block: TimeBlock;
   type: "past" | "current" | "future";
   progress?: number;
+  linkedTodos?: GlobalTodoItem[];
 }) {
   const dotColor = categoryColors[block.category] || "bg-gray-400";
+  const linkedSummary =
+    type === "current" && linkedTodos && linkedTodos.length > 0
+      ? (() => {
+          const titles = linkedTodos.map((t) => t.title.trim()).filter(Boolean);
+          const visible = titles.slice(0, 2);
+          const rest = titles.length - visible.length;
+          if (visible.length === 0) return null;
+          return rest > 0 ? `${visible.join("、")} +${rest}` : visible.join("、");
+        })()
+      : null;
 
   const containerStyles = {
     past: "opacity-50",
@@ -543,13 +583,22 @@ function TimeBlockItem({
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span className={cn(
-            "text-xs truncate",
-            type === "current" && "font-medium"
-          )}>
-            {block.label}
-          </span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <span
+              className={cn(
+                "text-xs truncate min-w-0",
+                type === "current" && "font-medium"
+              )}
+            >
+              {block.label}
+            </span>
+            {linkedSummary && (
+              <span className="text-[11px] text-muted-foreground truncate min-w-0">
+                · {linkedSummary}
+              </span>
+            )}
+          </div>
           <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
             {block.startTime}-{block.endTime}
           </span>

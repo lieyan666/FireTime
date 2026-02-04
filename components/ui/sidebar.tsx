@@ -202,6 +202,7 @@ function SidebarNav({ onNavClick }: { onNavClick?: () => void }) {
 
   const switchUser = () => {
     setCurrentUserId(currentUserId === "user1" ? "user2" : "user1");
+    window.location.reload();
   };
 
   // Helper to wrap element in Tooltip when collapsed

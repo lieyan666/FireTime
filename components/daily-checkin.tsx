@@ -197,7 +197,8 @@ export function DailyCheckInCard({
 interface DailyPKViewProps {
   user1: User;
   user2: User;
-  tasks: DailyTask[];
+  tasks1: DailyTask[];
+  tasks2: DailyTask[];
   checkIns1: DailyCheckIn[];
   checkIns2: DailyCheckIn[];
   streak1: number;
@@ -208,28 +209,49 @@ interface DailyPKViewProps {
 export function DailyPKView({
   user1,
   user2,
-  tasks,
+  tasks1,
+  tasks2,
   checkIns1,
   checkIns2,
   streak1,
   streak2,
   subjects = [],
 }: DailyPKViewProps) {
-  const getCompleted = (checkIns: DailyCheckIn[]) =>
+  const getCompleted = (tasks: DailyTask[], checkIns: DailyCheckIn[]) =>
     tasks.filter((t) => checkIns.find((c) => c.taskId === t.id)?.completed).length;
 
-  const completed1 = getCompleted(checkIns1);
-  const completed2 = getCompleted(checkIns2);
-  const total = tasks.length;
+  const completed1 = getCompleted(tasks1, checkIns1);
+  const completed2 = getCompleted(tasks2, checkIns2);
+  const total1 = tasks1.length;
+  const total2 = tasks2.length;
 
-  const pct1 = total > 0 ? (completed1 / total) * 100 : 0;
-  const pct2 = total > 0 ? (completed2 / total) * 100 : 0;
+  const pct1 = total1 > 0 ? (completed1 / total1) * 100 : 0;
+  const pct2 = total2 > 0 ? (completed2 / total2) * 100 : 0;
 
   const winner =
-    completed1 === completed2 ? "tie" : completed1 > completed2 ? "user1" : "user2";
+    Math.abs(pct1 - pct2) < 0.0001 ? "tie" : pct1 > pct2 ? "user1" : "user2";
 
   const getSubjectColor = (subjectId?: string) =>
     subjects.find((s) => s.id === subjectId)?.color;
+
+  const rows: Array<{ id: string; task1?: DailyTask; task2?: DailyTask }> = [];
+  const rowMap = new Map<string, { id: string; task1?: DailyTask; task2?: DailyTask }>();
+
+  for (const t of tasks1) {
+    const row = { id: t.id, task1: t as DailyTask, task2: undefined as DailyTask | undefined };
+    rowMap.set(t.id, row);
+    rows.push(row);
+  }
+  for (const t of tasks2) {
+    const existing = rowMap.get(t.id);
+    if (existing) {
+      existing.task2 = t;
+    } else {
+      const row = { id: t.id, task1: undefined as DailyTask | undefined, task2: t as DailyTask };
+      rowMap.set(t.id, row);
+      rows.push(row);
+    }
+  }
 
   return (
     <Card>
@@ -247,7 +269,7 @@ export function DailyPKView({
               "text-3xl font-bold",
               winner === "user1" ? "text-green-500" : "text-muted-foreground"
             )}>
-              {completed1}/{total}
+              {completed1}/{total1}
             </div>
             <div className="text-sm text-muted-foreground">{user1.name}</div>
             {streak1 > 0 && (
@@ -264,7 +286,7 @@ export function DailyPKView({
               "text-3xl font-bold",
               winner === "user2" ? "text-green-500" : "text-muted-foreground"
             )}>
-              {completed2}/{total}
+              {completed2}/{total2}
             </div>
             <div className="text-sm text-muted-foreground">{user2.name}</div>
             {streak2 > 0 && (
@@ -296,29 +318,38 @@ export function DailyPKView({
 
         {/* 逐项对比 */}
         <div className="space-y-1.5 pt-2 border-t">
-          {tasks.map((task) => {
-            const ci1 = checkIns1.find((c) => c.taskId === task.id);
-            const ci2 = checkIns2.find((c) => c.taskId === task.id);
-            const done1 = ci1?.completed ?? false;
-            const done2 = ci2?.completed ?? false;
-            const amt1 = ci1?.amount ?? 0;
-            const amt2 = ci2?.amount ?? 0;
-            const color = getSubjectColor(task.subjectId);
+          {rows.map((row) => {
+            const taskTitle = row.task1?.title || row.task2?.title || "";
+            const subjectId = row.task1?.subjectId || row.task2?.subjectId;
+            const color = getSubjectColor(subjectId);
+
+            const ci1 = row.task1 ? checkIns1.find((c) => c.taskId === row.task1!.id) : undefined;
+            const ci2 = row.task2 ? checkIns2.find((c) => c.taskId === row.task2!.id) : undefined;
+            const done1 = row.task1 ? (ci1?.completed ?? false) : false;
+            const done2 = row.task2 ? (ci2?.completed ?? false) : false;
+            const amt1 = row.task1 ? (ci1?.amount ?? 0) : undefined;
+            const amt2 = row.task2 ? (ci2?.amount ?? 0) : undefined;
 
             return (
-              <div key={task.id} className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center text-sm">
+              <div key={row.id} className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center text-sm">
                 {/* 用户1状态 */}
                 <div className="flex items-center gap-1.5 justify-end">
-                  <span className={cn(
-                    "text-xs font-mono",
-                    done1 ? "text-green-500" : "text-muted-foreground"
-                  )}>
-                    {amt1}/{task.target}
-                  </span>
-                  {done1 ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  {row.task1 ? (
+                    <>
+                      <span className={cn(
+                        "text-xs font-mono",
+                        done1 ? "text-green-500" : "text-muted-foreground"
+                      )}>
+                        {amt1}/{row.task1.target}
+                      </span>
+                      {done1 ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <Circle className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </>
                   ) : (
-                    <Circle className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs font-mono text-muted-foreground">—</span>
                   )}
                 </div>
 
@@ -327,22 +358,28 @@ export function DailyPKView({
                   {color && (
                     <div className="w-1.5 h-4 rounded-full" style={{ backgroundColor: color }} />
                   )}
-                  <span className="font-medium text-xs">{task.title}</span>
+                  <span className="font-medium text-xs">{taskTitle}</span>
                 </div>
 
                 {/* 用户2状态 */}
                 <div className="flex items-center gap-1.5">
-                  {done2 ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  {row.task2 ? (
+                    <>
+                      {done2 ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <Circle className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span className={cn(
+                        "text-xs font-mono",
+                        done2 ? "text-green-500" : "text-muted-foreground"
+                      )}>
+                        {amt2}/{row.task2.target}
+                      </span>
+                    </>
                   ) : (
-                    <Circle className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs font-mono text-muted-foreground">—</span>
                   )}
-                  <span className={cn(
-                    "text-xs font-mono",
-                    done2 ? "text-green-500" : "text-muted-foreground"
-                  )}>
-                    {amt2}/{task.target}
-                  </span>
                 </div>
               </div>
             );

@@ -4,13 +4,14 @@ import { useUser } from "@/components/user-provider";
 import { useSettings } from "@/hooks/use-settings";
 import { useDailyCheckIns, useDailyTasks } from "@/hooks/use-daily-tasks";
 import { getToday, formatDisplayDate } from "@/lib/dates";
+import { filterDailyTasksForUser } from "@/lib/daily-tasks";
 import { DailyCheckInCard, DailyPKView, DailyTaskManager } from "@/components/daily-checkin";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CheckInPage() {
   const today = getToday();
   const { users, currentUserId } = useUser();
-  const { settings } = useSettings();
+  const { settings, isLoading: settingsLoading } = useSettings();
   const { tasks: dailyTasks, addTask, removeTask, editTask } = useDailyTasks();
   const {
     checkIns,
@@ -24,7 +25,18 @@ export default function CheckInPage() {
   const user1 = users.find((u) => u.id === "user1") || { id: "user1" as const, name: "用户 1" };
   const user2 = users.find((u) => u.id === "user2") || { id: "user2" as const, name: "用户 2" };
 
-  if (isLoading) {
+  const subjects = settings?.subjects || [];
+  const subjectsForUser = (userId: "user1" | "user2") =>
+    subjects.filter((s) => {
+      const assignedTo = s.assignedTo || "both";
+      return assignedTo === "both" || assignedTo === userId;
+    });
+
+  const checkInTasks1 = filterDailyTasksForUser(checkInTasks, subjects, "user1");
+  const checkInTasks2 = filterDailyTasksForUser(checkInTasks, subjects, "user2");
+  const dailyTasksForCurrentUser = filterDailyTasksForUser(dailyTasks, subjects, currentUserId);
+
+  if (isLoading || settingsLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-64" />
@@ -44,8 +56,8 @@ export default function CheckInPage() {
           <p className="text-muted-foreground">{formatDisplayDate(today)}</p>
         </div>
         <DailyTaskManager
-          tasks={dailyTasks}
-          subjects={settings?.subjects}
+          tasks={dailyTasksForCurrentUser}
+          subjects={subjectsForUser(currentUserId)}
           userId={currentUserId}
           onAdd={addTask}
           onRemove={removeTask}
@@ -57,12 +69,13 @@ export default function CheckInPage() {
       <DailyPKView
         user1={user1}
         user2={user2}
-        tasks={checkInTasks}
+        tasks1={checkInTasks1}
+        tasks2={checkInTasks2}
         checkIns1={checkIns.user1}
         checkIns2={checkIns.user2}
         streak1={streaks.user1}
         streak2={streaks.user2}
-        subjects={settings?.subjects}
+        subjects={subjects}
       />
 
       {/* 双人打卡面板 */}
@@ -70,20 +83,20 @@ export default function CheckInPage() {
         <DailyCheckInCard
           user={user1}
           userId="user1"
-          tasks={checkInTasks}
+          tasks={checkInTasks1}
           checkIns={checkIns.user1}
           streak={streaks.user1}
-          subjects={settings?.subjects}
+          subjects={subjectsForUser("user1")}
           onToggle={(taskId) => toggleCheckIn("user1", taskId)}
           onSetAmount={(taskId, amount) => setCheckInAmount("user1", taskId, amount)}
         />
         <DailyCheckInCard
           user={user2}
           userId="user2"
-          tasks={checkInTasks}
+          tasks={checkInTasks2}
           checkIns={checkIns.user2}
           streak={streaks.user2}
-          subjects={settings?.subjects}
+          subjects={subjectsForUser("user2")}
           onToggle={(taskId) => toggleCheckIn("user2", taskId)}
           onSetAmount={(taskId, amount) => setCheckInAmount("user2", taskId, amount)}
         />

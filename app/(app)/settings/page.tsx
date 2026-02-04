@@ -574,7 +574,7 @@ function TemplateDialog({
   const categories = [
     { value: "routine", label: "日常" },
     { value: "meal", label: "用餐" },
-    { value: "work", label: "工作/学习" },
+    { value: "work", label: "学习/工作" },
     { value: "rest", label: "休息" },
     { value: "free", label: "自由时间" },
     { value: "sleep", label: "睡眠" },

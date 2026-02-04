@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { filterDailyTasksForUser } from "./daily-tasks";
 import type {
   AppSettings,
   DayData,
@@ -9,6 +10,7 @@ import type {
   DailyTaskList,
   DailyCheckInData,
   UserDailyCheckIns,
+  UserId,
 } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -372,10 +374,12 @@ export function getAllCheckInDates(): string[] {
 }
 
 // 计算连续打卡天数
-export function getStreak(userId: "user1" | "user2", today: string): number {
-  const dates = getAllCheckInDates().reverse(); // 从最新日期开始
+export function getStreak(userId: UserId, today: string): number {
   const tasks = getDailyTasks();
-  const totalTasks = tasks.tasks.length;
+  const settings = getSettings();
+  const userTasks = filterDailyTasksForUser(tasks.tasks, settings.subjects, userId);
+  const userTaskIdSet = new Set(userTasks.map((t) => t.id));
+  const totalTasks = userTasks.length;
   if (totalTasks === 0) return 0;
 
   let streak = 0;
@@ -388,7 +392,9 @@ export function getStreak(userId: "user1" | "user2", today: string): number {
 
     const data = getDailyCheckIns(dateStr);
     const userCheckIns = data.checkIns[userId];
-    const completedCount = userCheckIns.filter((c) => c.completed).length;
+    const completedCount = userCheckIns.filter(
+      (c) => c.completed && userTaskIdSet.has(c.taskId)
+    ).length;
 
     if (completedCount >= totalTasks) {
       streak++;
