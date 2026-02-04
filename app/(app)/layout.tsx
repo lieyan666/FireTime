@@ -36,7 +36,7 @@ function HeaderContent() {
   const { currentUser } = useUser();
   const currentTime = useClock();
   const { settings, updateSettings } = useSettings();
-  const { setOpen: setSidebarOpen } = useSidebar();
+  const { setExpanded } = useSidebar();
   const [editingMotto, setEditingMotto] = useState(false);
   const [mottoValue, setMottoValue] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -48,13 +48,13 @@ function HeaderContent() {
       setIsFullscreen(!!document.fullscreenElement);
       // 退出全屏时恢复侧边栏
       if (!document.fullscreenElement) {
-        setSidebarOpen(true);
+        setExpanded(true);
       }
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
-  }, [setSidebarOpen]);
+  }, [setExpanded]);
 
   // 获取服务器时间
   useEffect(() => {
@@ -72,16 +72,16 @@ function HeaderContent() {
       if (!document.fullscreenElement) {
         // 进入全屏
         await document.documentElement.requestFullscreen();
-        setSidebarOpen(false);
+        setExpanded(false);
       } else {
         // 退出全屏
         await document.exitFullscreen();
-        setSidebarOpen(true);
+        setExpanded(true);
       }
     } catch (err) {
       console.error("Fullscreen error:", err);
     }
-  }, [setSidebarOpen]);
+  }, [setExpanded]);
 
   const handleEditMotto = () => {
     setMottoValue(settings?.motto || "");
@@ -150,7 +150,7 @@ function HeaderContent() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <a
-                  href="https://github.com/lieyanqzu/FireTime"
+                  href="https://github.com/lieyanc/FireTime"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 hover:text-foreground transition-colors"
