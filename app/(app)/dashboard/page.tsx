@@ -483,43 +483,84 @@ export default function DashboardPage() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
             {settings.subjects.map((subject) => {
-              const total = subject.homework.reduce(
-                (sum, h) => sum + h.totalPages,
-                0
-              );
-              const completed = subject.homework.reduce(
-                (sum, h) => sum + (h.completedPages[currentUserId] || 0),
-                0
-              );
-              const pct = total > 0 ? (completed / total) * 100 : 0;
+              const assignedTo = subject.assignedTo || "both";
+              const showUser1 = assignedTo === "both" || assignedTo === "user1";
+              const showUser2 = assignedTo === "both" || assignedTo === "user2";
+
               return (
-                <div key={subject.id} className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <div
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: subject.color }}
-                      />
-                      <span className="text-xs font-medium">
-                        {subject.name}
+                <div key={subject.id} className="space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <div
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: subject.color }}
+                    />
+                    <span className="text-xs font-medium">{subject.name}</span>
+                    {assignedTo !== "both" && (
+                      <span className="text-[9px] text-muted-foreground">
+                        ({assignedTo === "user1" ? users[0]?.name : users[1]?.name})
                       </span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">
-                      {Math.round(pct)}%
-                    </span>
+                    )}
                   </div>
-                  <Progress value={pct} className="h-1.5" />
-                  <div className="text-[10px] text-muted-foreground truncate">
-                    {subject.homework
-                      .map(
-                        (h) =>
-                          `${h.title} ${h.completedPages}/${h.totalPages}${h.unit}`
-                      )
-                      .join(" · ")}
-                  </div>
+                  {subject.homework.map((hw) => {
+                    const pct1 = (hw.completedPages.user1 / hw.totalPages) * 100;
+                    const pct2 = (hw.completedPages.user2 / hw.totalPages) * 100;
+                    return (
+                      <div key={hw.id} className="space-y-0.5">
+                        <div className="text-[10px] text-muted-foreground flex justify-between">
+                          <span>{hw.title}</span>
+                          <span className="tabular-nums">/{hw.totalPages}{hw.unit}</span>
+                        </div>
+                        {showUser1 && showUser2 ? (
+                          <div className="flex gap-1 h-1.5">
+                            <div className="flex-1 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-blue-500 transition-all"
+                                style={{ width: `${Math.min(100, pct1)}%` }}
+                              />
+                            </div>
+                            <div className="flex-1 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-green-500 transition-all"
+                                style={{ width: `${Math.min(100, pct2)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <Progress
+                            value={showUser1 ? pct1 : pct2}
+                            className="h-1.5"
+                          />
+                        )}
+                        <div className="flex text-[9px] text-muted-foreground tabular-nums">
+                          {showUser1 && (
+                            <span className={cn("text-blue-500", !showUser2 && "flex-1")}>
+                              {hw.completedPages.user1}
+                            </span>
+                          )}
+                          {showUser1 && showUser2 && <span className="flex-1" />}
+                          {showUser2 && (
+                            <span className="text-green-500 text-right">
+                              {hw.completedPages.user2}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
+          </div>
+          {/* 图例 */}
+          <div className="flex items-center justify-center gap-4 mt-3 pt-2 border-t text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+              {users[0]?.name || "用户1"}
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-green-500" />
+              {users[1]?.name || "用户2"}
+            </span>
           </div>
         </div>
       )}

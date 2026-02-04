@@ -80,11 +80,12 @@ export function useDailyCheckIns(date: string) {
     mutate();
   };
 
-  // 更新作业总进度（增减量）
+  // 更新作业总进度（增减量）- 按用户
   const adjustHomeworkProgress = async (
     subjectId: string,
     homeworkId: string,
-    delta: number // 正数增加，负数减少
+    delta: number, // 正数增加，负数减少
+    userId: UserId
   ) => {
     if (delta === 0) return;
 
@@ -98,12 +99,17 @@ export function useDailyCheckIns(date: string) {
           ...s,
           homework: s.homework.map((h: any) => {
             if (h.id === homeworkId) {
+              // 确保 completedPages 是对象格式
+              const currentProgress = typeof h.completedPages === "object"
+                ? h.completedPages
+                : { user1: h.completedPages || 0, user2: 0 };
               // 确保不会变成负数，也不会超过总量
-              const newCompleted = Math.max(
-                0,
-                Math.min(h.totalPages, h.completedPages + delta)
-              );
-              return { ...h, completedPages: newCompleted };
+              const currentValue = currentProgress[userId] || 0;
+              const newValue = Math.max(0, Math.min(h.totalPages, currentValue + delta));
+              return {
+                ...h,
+                completedPages: { ...currentProgress, [userId]: newValue },
+              };
             }
             return h;
           }),
@@ -157,8 +163,8 @@ export function useDailyCheckIns(date: string) {
       const syncedAmount = existing.syncedAmount || 0;
 
       if (syncedAmount > 0 && task?.subjectId && task?.homeworkId) {
-        // 从作业进度中减去
-        await adjustHomeworkProgress(task.subjectId, task.homeworkId, -syncedAmount);
+        // 从作业进度中减去（传入 userId）
+        await adjustHomeworkProgress(task.subjectId, task.homeworkId, -syncedAmount, userId);
         // 移除进度记录
         newProgress = removeProgressEntry(userId, newProgress, taskId);
       }
@@ -179,8 +185,8 @@ export function useDailyCheckIns(date: string) {
       const delta = targetAmount - previousSynced;
 
       if (delta > 0 && task?.subjectId && task?.homeworkId) {
-        // 增加作业进度
-        await adjustHomeworkProgress(task.subjectId, task.homeworkId, delta);
+        // 增加作业进度（传入 userId）
+        await adjustHomeworkProgress(task.subjectId, task.homeworkId, delta, userId);
         // 添加进度记录
         newProgress = addProgressEntry(userId, newProgress, {
           subjectId: task.subjectId,
@@ -236,7 +242,7 @@ export function useDailyCheckIns(date: string) {
     if (isNowCompleted && task?.subjectId && task?.homeworkId) {
       const delta = amount - previousSynced;
       if (delta !== 0) {
-        await adjustHomeworkProgress(task.subjectId, task.homeworkId, delta);
+        await adjustHomeworkProgress(task.subjectId, task.homeworkId, delta, userId);
         newSyncedAmount = amount;
 
         // 更新或添加进度记录
@@ -252,7 +258,7 @@ export function useDailyCheckIns(date: string) {
       }
     } else if (!isNowCompleted && previousSynced > 0 && task?.subjectId && task?.homeworkId) {
       // 从完成变为未完成，回退进度
-      await adjustHomeworkProgress(task.subjectId, task.homeworkId, -previousSynced);
+      await adjustHomeworkProgress(task.subjectId, task.homeworkId, -previousSynced, userId);
       newSyncedAmount = 0;
       newProgress = removeProgressEntry(userId, newProgress, taskId);
     }

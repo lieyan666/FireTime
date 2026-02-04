@@ -317,6 +317,9 @@ function SubjectForm({
 }) {
   const [name, setName] = useState(initialData?.name || "");
   const [color, setColor] = useState(initialData?.color || "#3b82f6");
+  const [assignedTo, setAssignedTo] = useState<"both" | "user1" | "user2">(
+    initialData?.assignedTo || "both"
+  );
   const [homework, setHomework] = useState<HomeworkItem[]>(
     initialData?.homework || []
   );
@@ -351,6 +354,7 @@ function SubjectForm({
       name: name.trim(),
       color,
       homework,
+      assignedTo,
     });
   };
 
@@ -374,6 +378,42 @@ function SubjectForm({
           onChange={(e) => setName(e.target.value)}
           placeholder="如：数学"
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label>归属</Label>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={assignedTo === "both" ? "default" : "outline"}
+            onClick={() => setAssignedTo("both")}
+            className="flex-1"
+          >
+            共同
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={assignedTo === "user1" ? "default" : "outline"}
+            onClick={() => setAssignedTo("user1")}
+            className="flex-1"
+          >
+            仅用户1
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={assignedTo === "user2" ? "default" : "outline"}
+            onClick={() => setAssignedTo("user2")}
+            className="flex-1"
+          >
+            仅用户2
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          选课不同时，可设置学科仅属于某一用户
+        </p>
       </div>
 
       <div className="space-y-2">

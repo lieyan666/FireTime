@@ -3,6 +3,17 @@ import type { AppSettings, Subject, UserId } from "@/lib/types";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+// 判断学科是否属于某个用户
+export function isSubjectForUser(subject: Subject, userId: UserId): boolean {
+  const assignedTo = subject.assignedTo || "both";
+  return assignedTo === "both" || assignedTo === userId;
+}
+
+// 获取用户可见的学科列表
+export function getSubjectsForUser(subjects: Subject[], userId: UserId): Subject[] {
+  return subjects.filter((s) => isSubjectForUser(s, userId));
+}
+
 export function useSettings() {
   const { data, error, isLoading, mutate } = useSWR<{ settings: AppSettings }>(
     "/api/settings",
@@ -83,7 +94,7 @@ export function getVacationProgress(
   return { daysPassed, totalDays, percentage, daysRemaining };
 }
 
-// 计算学科作业整体进度（按用户）
+// 计算学科作业整体进度（按用户，只计算属于该用户的学科）
 export function getSubjectProgress(subjects: Subject[], userId: UserId): {
   totalItems: number;
   completedItems: number;
@@ -94,7 +105,10 @@ export function getSubjectProgress(subjects: Subject[], userId: UserId): {
   let completedItems = 0;
   const bySubject: { id: string; name: string; color: string; percentage: number }[] = [];
 
-  for (const subject of subjects) {
+  // 只计算属于该用户的学科
+  const userSubjects = getSubjectsForUser(subjects, userId);
+
+  for (const subject of userSubjects) {
     let subjectTotal = 0;
     let subjectCompleted = 0;
     for (const hw of subject.homework) {
