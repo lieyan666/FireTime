@@ -471,6 +471,8 @@ export default function DashboardPage() {
                       showUser2={showUser2}
                       user1Color={users[0]?.progressColor || "#3b82f6"}
                       user2Color={users[1]?.progressColor || "#22c55e"}
+                      user1Name={users[0]?.name || "用户1"}
+                      user2Name={users[1]?.name || "用户2"}
                       onUpdate={updateHomeworkProgress}
                     />
                   ))}
@@ -887,6 +889,8 @@ function HomeworkSlider({
   showUser2,
   user1Color,
   user2Color,
+  user1Name,
+  user2Name,
   onUpdate,
 }: {
   subjectId: string;
@@ -895,109 +899,164 @@ function HomeworkSlider({
   showUser2: boolean;
   user1Color: string;
   user2Color: string;
+  user1Name: string;
+  user2Name: string;
   onUpdate: (subjectId: string, homeworkId: string, value: number, userId: UserId) => void;
 }) {
-  const [dragging, setDragging] = useState<UserId | null>(null);
-
-  const handleSliderChange = (userId: UserId, value: number) => {
-    const newValue = Math.min(homework.totalPages, Math.max(0, value));
-    onUpdate(subjectId, homework.id, newValue, userId);
-  };
-
-  const handleMouseDown = (userId: UserId, e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setDragging(userId);
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const newValue = Math.round(pct * homework.totalPages);
-    handleSliderChange(userId, newValue);
-  };
-
-  const handleMouseMove = (userId: UserId, e: React.MouseEvent<HTMLDivElement>) => {
-    if (dragging !== userId) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const newValue = Math.round(pct * homework.totalPages);
-    handleSliderChange(userId, newValue);
-  };
-
-  const handleMouseUp = () => {
-    setDragging(null);
-  };
-
-  const handleMouseLeave = () => {
-    if (dragging) setDragging(null);
-  };
+  const [open, setOpen] = useState(false);
+  const [editUser1, setEditUser1] = useState(homework.completedPages.user1);
+  const [editUser2, setEditUser2] = useState(homework.completedPages.user2);
 
   const pct1 = (homework.completedPages.user1 / homework.totalPages) * 100;
   const pct2 = (homework.completedPages.user2 / homework.totalPages) * 100;
 
+  const handleOpen = () => {
+    setEditUser1(homework.completedPages.user1);
+    setEditUser2(homework.completedPages.user2);
+    setOpen(true);
+  };
+
+  const handleSave = () => {
+    if (showUser1 && editUser1 !== homework.completedPages.user1) {
+      onUpdate(subjectId, homework.id, editUser1, "user1");
+    }
+    if (showUser2 && editUser2 !== homework.completedPages.user2) {
+      onUpdate(subjectId, homework.id, editUser2, "user2");
+    }
+    setOpen(false);
+  };
+
   return (
-    <div className="space-y-0.5">
-      <div className="text-[10px] text-muted-foreground flex justify-between">
-        <span>{homework.title}</span>
-        <span className="tabular-nums">/{homework.totalPages}{homework.unit}</span>
-      </div>
-      {showUser1 && showUser2 ? (
-        <div className="flex gap-1 h-2.5">
-          <div
-            className="flex-1 bg-muted rounded-full overflow-hidden cursor-pointer relative group"
-            onMouseDown={(e) => handleMouseDown("user1", e)}
-            onMouseMove={(e) => handleMouseMove("user1", e)}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseLeave}
-          >
-            <div
-              className="h-full transition-all"
-              style={{ width: `${Math.min(100, pct1)}%`, backgroundColor: user1Color }}
-            />
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-black/10 transition-opacity" />
-          </div>
-          <div
-            className="flex-1 bg-muted rounded-full overflow-hidden cursor-pointer relative group"
-            onMouseDown={(e) => handleMouseDown("user2", e)}
-            onMouseMove={(e) => handleMouseMove("user2", e)}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseLeave}
-          >
-            <div
-              className="h-full transition-all"
-              style={{ width: `${Math.min(100, pct2)}%`, backgroundColor: user2Color }}
-            />
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-black/10 transition-opacity" />
-          </div>
+    <>
+      <div className="space-y-0.5 cursor-pointer group" onClick={handleOpen}>
+        <div className="text-[10px] text-muted-foreground flex justify-between">
+          <span className="group-hover:text-foreground transition-colors">{homework.title}</span>
+          <span className="tabular-nums">/{homework.totalPages}{homework.unit}</span>
         </div>
-      ) : (
+        {showUser1 && showUser2 ? (
+          <div className="flex gap-1 h-1.5">
+            <div className="flex-1 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full transition-all"
+                style={{ width: `${Math.min(100, pct1)}%`, backgroundColor: user1Color }}
+              />
+            </div>
+            <div className="flex-1 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full transition-all"
+                style={{ width: `${Math.min(100, pct2)}%`, backgroundColor: user2Color }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full transition-all"
+              style={{
+                width: `${Math.min(100, showUser1 ? pct1 : pct2)}%`,
+                backgroundColor: showUser1 ? user1Color : user2Color,
+              }}
+            />
+          </div>
+        )}
+        <div className="flex text-[9px] text-muted-foreground tabular-nums">
+          {showUser1 && (
+            <span style={{ color: user1Color }} className={cn(!showUser2 && "flex-1")}>
+              {homework.completedPages.user1}
+            </span>
+          )}
+          {showUser1 && showUser2 && <span className="flex-1" />}
+          {showUser2 && (
+            <span style={{ color: user2Color }} className="text-right">
+              {homework.completedPages.user2}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Edit Dialog */}
+      {open && (
         <div
-          className="h-2.5 bg-muted rounded-full overflow-hidden cursor-pointer relative group"
-          onMouseDown={(e) => handleMouseDown(showUser1 ? "user1" : "user2", e)}
-          onMouseMove={(e) => handleMouseMove(showUser1 ? "user1" : "user2", e)}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setOpen(false)}
         >
           <div
-            className="h-full transition-all"
-            style={{
-              width: `${Math.min(100, showUser1 ? pct1 : pct2)}%`,
-              backgroundColor: showUser1 ? user1Color : user2Color,
-            }}
-          />
-          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-black/10 transition-opacity" />
+            className="bg-background border rounded-lg p-4 w-72 space-y-4 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="font-medium text-sm">{homework.title}</div>
+
+            {showUser1 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span style={{ color: user1Color }}>{user1Name}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {editUser1} / {homework.totalPages} {homework.unit}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max={homework.totalPages}
+                  value={editUser1}
+                  onChange={(e) => setEditUser1(parseInt(e.target.value))}
+                  className="w-full h-2 rounded-full appearance-none cursor-pointer bg-muted"
+                  style={{
+                    accentColor: user1Color,
+                  }}
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  max={homework.totalPages}
+                  value={editUser1}
+                  onChange={(e) => setEditUser1(Math.min(homework.totalPages, Math.max(0, parseInt(e.target.value) || 0)))}
+                  className="h-8 text-center"
+                />
+              </div>
+            )}
+
+            {showUser2 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span style={{ color: user2Color }}>{user2Name}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {editUser2} / {homework.totalPages} {homework.unit}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max={homework.totalPages}
+                  value={editUser2}
+                  onChange={(e) => setEditUser2(parseInt(e.target.value))}
+                  className="w-full h-2 rounded-full appearance-none cursor-pointer bg-muted"
+                  style={{
+                    accentColor: user2Color,
+                  }}
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  max={homework.totalPages}
+                  value={editUser2}
+                  onChange={(e) => setEditUser2(Math.min(homework.totalPages, Math.max(0, parseInt(e.target.value) || 0)))}
+                  className="h-8 text-center"
+                />
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>
+                取消
+              </Button>
+              <Button className="flex-1" onClick={handleSave}>
+                保存
+              </Button>
+            </div>
+          </div>
         </div>
       )}
-      <div className="flex text-[9px] text-muted-foreground tabular-nums">
-        {showUser1 && (
-          <span style={{ color: user1Color }} className={cn(!showUser2 && "flex-1")}>
-            {homework.completedPages.user1}
-          </span>
-        )}
-        {showUser1 && showUser2 && <span className="flex-1" />}
-        {showUser2 && (
-          <span style={{ color: user2Color }} className="text-right">
-            {homework.completedPages.user2}
-          </span>
-        )}
-      </div>
-    </div>
+    </>
   );
 }

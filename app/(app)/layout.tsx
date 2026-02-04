@@ -7,16 +7,28 @@ import { Separator } from "@/components/ui/separator";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Moon, Sun, Home, Flame, Edit3, Check, X, User as UserIcon } from "lucide-react";
+import { Moon, Sun, Flame, Edit3, Check, X, User as UserIcon, Github, Server } from "lucide-react";
 import { useUser } from "@/components/user-provider";
 import { useSettings } from "@/hooks/use-settings";
 import { useClock } from "@/hooks/use-clock";
-import Link from "next/link";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+// 构建信息
+const BUILD_INFO = {
+  commitId: process.env.NEXT_PUBLIC_COMMIT_ID || "dev",
+  buildId: process.env.NEXT_PUBLIC_BUILD_ID || "local",
+  buildTime: process.env.NEXT_PUBLIC_BUILD_TIME || new Date().toISOString(),
+};
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { theme, setTheme } = useTheme();
@@ -43,6 +55,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setMottoValue("");
   };
 
+  // 格式化构建时间
+  const formatBuildTime = (isoString: string) => {
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleString("zh-CN", {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "unknown";
+    }
+  };
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -51,33 +78,70 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-6" />
 
-          {/* 返回主页 */}
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/dashboard">
-              <Home className="h-4 w-4 mr-1" />
-              主页
-            </Link>
-          </Button>
+          {/* 左侧: FireTime Logo + 构建信息 */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <Flame className="h-5 w-5 text-orange-500" />
+              <span className="font-bold">FireTime</span>
+            </div>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    href="https://github.com/lieyanqzu/FireTime"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Github className="h-3.5 w-3.5" />
+                    <span className="font-mono">{BUILD_INFO.commitId}</span>
+                    {BUILD_INFO.buildId !== "local" && (
+                      <span className="font-mono">#{BUILD_INFO.buildId}</span>
+                    )}
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>查看 GitHub 仓库</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Server className="h-3 w-3" />
+                    <span className="font-mono">{formatBuildTime(BUILD_INFO.buildTime)}</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>构建时间</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
 
           <div className="flex-1" />
 
-          {/* 中间区域: FireTime + 时间 + 格言 */}
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-2">
-              <Flame className="h-5 w-5 text-orange-500" />
-              <span className="font-bold text-lg">FireTime</span>
-              <span className="font-mono text-2xl font-semibold tabular-nums tracking-tight">
-                {currentTime}
-              </span>
-            </div>
+          {/* 中间: 时间居中 */}
+          <span className="font-mono text-2xl font-semibold tabular-nums tracking-tight">
+            {currentTime}
+          </span>
+
+          <div className="flex-1" />
+
+          {/* 右侧: 格言 + 用户 + 主题 */}
+          <div className="flex items-center gap-3">
+            {/* 格言 */}
             <Popover open={editingMotto} onOpenChange={(open) => !open && handleCancelMotto()}>
               <PopoverTrigger asChild>
                 <button
                   onClick={handleEditMotto}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 group"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 group max-w-48 truncate"
                 >
-                  {settings?.motto || "点击设置格言"}
-                  <Edit3 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <span className="truncate">{settings?.motto || "点击设置格言"}</span>
+                  <Edit3 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-80">
@@ -103,39 +167,39 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
               </PopoverContent>
             </Popover>
-          </div>
 
-          <div className="flex-1" />
+            <Separator orientation="vertical" className="h-6" />
 
-          {/* 右侧: 用户头像和名字 */}
-          {currentUser && (
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden border">
-                {currentUser.avatar ? (
-                  <img
-                    src={currentUser.avatar}
-                    alt={currentUser.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <UserIcon className="w-4 h-4 text-muted-foreground" />
-                )}
+            {/* 用户头像和名字 */}
+            {currentUser && (
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center overflow-hidden border">
+                  {currentUser.avatar ? (
+                    <img
+                      src={currentUser.avatar}
+                      alt={currentUser.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <UserIcon className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </div>
+                <span className="text-sm font-medium">{currentUser.name}</span>
               </div>
-              <span className="text-sm font-medium">{currentUser.name}</span>
-            </div>
-          )}
+            )}
 
-          <Separator orientation="vertical" className="h-6" />
+            <Separator orientation="vertical" className="h-6" />
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
-            <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-            <span className="sr-only">切换主题</span>
-          </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            >
+              <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <span className="sr-only">切换主题</span>
+            </Button>
+          </div>
         </header>
         <main className="flex-1 overflow-auto p-4">{children}</main>
       </SidebarInset>
